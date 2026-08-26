@@ -15,4 +15,4 @@ export const ENV = Symbol('ENV');
   providers: [{ provide: ENV, useFactory: (): Env => envSchema.parse(process.env) }],
   exports: [ENV],
 })
-export class ConfigModule { }
+export class ConfigModule {}

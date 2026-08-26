@@ -27,4 +27,4 @@ const CORRELATION_ID = 'x-correlation-id';
     }),
   ],
 })
-export class LoggingModule { }
+export class LoggingModule {}
