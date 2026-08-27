@@ -1,0 +1,241 @@
+import {
+  type FailureCode,
+  InvalidMoneyError,
+  InvalidTransactionStateError,
+  MissingReferenceError,
+  TransactionKindNotAcceptedError,
+} from '@domain/errors';
+import { Money, type MoneyProps } from '@domain/shared/money';
+import type { LedgerDirection } from '@domain/wallet/wallet-ledger-entry';
+
+export type WagerTransactionKind = 'OPENING' | 'BET' | 'WIN' | 'LOSS' | 'REFUND' | 'ROLLBACK';
+
+export type WagerTransactionStatus =
+  | 'PENDING'
+  | 'PENDING_REFERENCE'
+  | 'PROCESSED'
+  | 'REJECTED'
+  | 'FAILED';
+
+const TERMINAL_STATUSES: WagerTransactionStatus[] = ['PROCESSED', 'REJECTED', 'FAILED'];
+const KINDS_REQUIRING_REFERENCE: WagerTransactionKind[] = ['REFUND', 'ROLLBACK'];
+const CREDIT_KINDS: WagerTransactionKind[] = ['OPENING', 'WIN', 'REFUND'];
+
+export interface CreateWagerTransactionProps {
+  id: string;
+  providerId: string;
+  externalTransactionId: string;
+  idempotencyKey: string;
+  payloadHash: string;
+  walletId: string;
+  playerId: string;
+  roundId: string;
+  gameId: string;
+  kind: WagerTransactionKind;
+  money: Money;
+  referenceExternalTransactionId?: string;
+  createdAt: Date;
+}
+
+/** A transação como fica no banco: os dados de criação mais o que muda com o tempo. */
+export interface WagerTransactionState {
+  id: string;
+  providerId: string;
+  externalTransactionId: string;
+  idempotencyKey: string;
+  payloadHash: string;
+  walletId: string;
+  playerId: string;
+  roundId: string;
+  gameId: string;
+  kind: WagerTransactionKind;
+  money: MoneyProps;
+  referenceExternalTransactionId?: string;
+  createdAt: Date;
+  status: WagerTransactionStatus;
+  referenceTransactionId?: string;
+  failureCode?: FailureCode;
+  processedAt?: Date;
+}
+
+export class WagerTransaction {
+  private constructor(
+    public readonly id: string,
+    public readonly providerId: string,
+    public readonly externalTransactionId: string,
+    public readonly idempotencyKey: string,
+    public readonly payloadHash: string,
+    public readonly walletId: string,
+    public readonly playerId: string,
+    public readonly roundId: string,
+    public readonly gameId: string,
+    public readonly kind: WagerTransactionKind,
+    public readonly money: Money,
+    public readonly referenceExternalTransactionId: string | undefined,
+    public readonly createdAt: Date,
+    private _status: WagerTransactionStatus,
+    private _referenceTransactionId?: string,
+    private _failureCode?: FailureCode,
+    private _processedAt?: Date,
+  ) {}
+
+  /** Nasce em PENDING e exige referência nos tipos que revertem outra transação. */
+  static create(props: CreateWagerTransactionProps): WagerTransaction {
+    if (!props.money.isPositive()) {
+      throw new InvalidMoneyError(`Transação exige valor positivo: ${props.money.toString()}`, {
+        externalTransactionId: props.externalTransactionId,
+      });
+    }
+
+    if (KINDS_REQUIRING_REFERENCE.includes(props.kind) && !props.referenceExternalTransactionId) {
+      throw new MissingReferenceError(`${props.kind} exige referenceExternalTransactionId`, {
+        externalTransactionId: props.externalTransactionId,
+        kind: props.kind,
+      });
+    }
+
+    return new WagerTransaction(
+      props.id,
+      props.providerId,
+      props.externalTransactionId,
+      props.idempotencyKey,
+      props.payloadHash,
+      props.walletId,
+      props.playerId,
+      props.roundId,
+      props.gameId,
+      props.kind,
+      props.money,
+      props.referenceExternalTransactionId,
+      props.createdAt,
+      'PENDING',
+    );
+  }
+
+  /** Reconstrução a partir do banco: aceita qualquer status, não revalida transições. */
+  static rehydrate(state: WagerTransactionState): WagerTransaction {
+    return new WagerTransaction(
+      state.id,
+      state.providerId,
+      state.externalTransactionId,
+      state.idempotencyKey,
+      state.payloadHash,
+      state.walletId,
+      state.playerId,
+      state.roundId,
+      state.gameId,
+      state.kind,
+      Money.from(state.money),
+      state.referenceExternalTransactionId,
+      state.createdAt,
+      state.status,
+      state.referenceTransactionId,
+      state.failureCode,
+      state.processedAt,
+    );
+  }
+
+  /** OPENING só nasce internamente: a API e a fila precisam recusar esse tipo. */
+  static assertExternallySubmittable(kind: WagerTransactionKind): void {
+    if (kind === 'OPENING') {
+      throw new TransactionKindNotAcceptedError(`Tipo de transação não aceito na borda: ${kind}`, {
+        kind,
+      });
+    }
+  }
+
+  get status(): WagerTransactionStatus {
+    return this._status;
+  }
+
+  get referenceTransactionId(): string | undefined {
+    return this._referenceTransactionId;
+  }
+
+  get failureCode(): FailureCode | undefined {
+    return this._failureCode;
+  }
+
+  get processedAt(): Date | undefined {
+    return this._processedAt;
+  }
+
+  markProcessed(referenceTransactionId: string | undefined, at: Date): void {
+    this.assertNotTerminal('PROCESSED');
+    this._status = 'PROCESSED';
+    this._referenceTransactionId = referenceTransactionId;
+    this._processedAt = at;
+  }
+
+  markPendingReference(): void {
+    this.assertNotTerminal('PENDING_REFERENCE');
+    this._status = 'PENDING_REFERENCE';
+  }
+
+  reject(code: FailureCode): void {
+    this.assertNotTerminal('REJECTED');
+    this._status = 'REJECTED';
+    this._failureCode = code;
+  }
+
+  fail(code: FailureCode): void {
+    this.assertNotTerminal('FAILED');
+    this._status = 'FAILED';
+    this._failureCode = code;
+  }
+
+  isTerminal(): boolean {
+    return TERMINAL_STATUSES.includes(this._status);
+  }
+
+  affectsBalance(): boolean {
+    return this.kind !== 'LOSS';
+  }
+
+  requiresReference(): boolean {
+    return KINDS_REQUIRING_REFERENCE.includes(this.kind);
+  }
+
+  matchesPayload(payloadHash: string): boolean {
+    return this.payloadHash === payloadHash;
+  }
+
+  /** BET debita, OPENING/WIN/REFUND creditam e ROLLBACK faz o contrário da referência. */
+  ledgerDirectionFor(reference?: WagerTransaction): LedgerDirection {
+    if (!this.affectsBalance()) {
+      throw new InvalidTransactionStateError(`${this.kind} não gera lançamento no ledger`, {
+        transactionId: this.id,
+        kind: this.kind,
+      });
+    }
+
+    if (this.kind !== 'ROLLBACK') {
+      return CREDIT_KINDS.includes(this.kind) ? 'CREDIT' : 'DEBIT';
+    }
+
+    if (!reference) {
+      throw new InvalidTransactionStateError(
+        'ROLLBACK precisa da referência para definir a direção',
+        { transactionId: this.id },
+      );
+    }
+
+    if (!reference.affectsBalance()) {
+      throw new InvalidTransactionStateError(
+        `ROLLBACK não pode reverter ${reference.kind}, que não gera lançamento`,
+        { transactionId: this.id, referenceKind: reference.kind },
+      );
+    }
+
+    return CREDIT_KINDS.includes(reference.kind) ? 'DEBIT' : 'CREDIT';
+  }
+
+  private assertNotTerminal(target: WagerTransactionStatus): void {
+    if (this.isTerminal()) {
+      throw new InvalidTransactionStateError(
+        `Transição inválida de ${this._status} para ${target}`,
+        { transactionId: this.id, from: this._status, to: target },
+      );
+    }
+  }
+}
