@@ -1,5 +1,18 @@
 name: backend-challenge
 
+# Mesmo ambiente para o passo de migration e para a app: uma lista só, sem duplicação.
+x-service-env: &service-env
+  NODE_ENV: development
+  PORT: 3000
+  LOG_LEVEL: info
+  DATABASE_URL: postgres://wagering:wagering@postgres:5432/wagering
+  AWS_REGION: us-east-1
+  AWS_ACCESS_KEY_ID: test
+  AWS_SECRET_ACCESS_KEY: test
+  AWS_ENDPOINT_URL: http://localstack:4566
+  SQS_WAGER_QUEUE_URL: http://localstack:4566/000000000000/wager-transactions.fifo
+  SQS_EVENTS_QUEUE_URL: http://localstack:4566/000000000000/wagering-events.fifo
+
 services:
   postgres:
     image: postgres:17-alpine
@@ -26,7 +39,7 @@ services:
     volumes:
       - ./docker/localstack/init-sqs.sh:/etc/localstack/init/ready.d/init-sqs.sh:ro
     healthcheck:
-      test: ['CMD-SHELL', 'awslocal sqs get-queue-url --queue-name wager-transactions.fifo']
+      test: ['CMD-SHELL', 'awslocal sqs get-queue-url --queue-name wagering-events.fifo']
       interval: 5s
       timeout: 5s
       retries: 20
@@ -36,9 +49,7 @@ services:
   migrate:
     build: .
     command: ['bun', 'run', 'migration:up']
-    environment:
-      NODE_ENV: development
-      DATABASE_URL: postgres://wagering:wagering@postgres:5432/wagering
+    environment: *service-env
     depends_on:
       postgres:
         condition: service_healthy
@@ -46,16 +57,7 @@ services:
 
   app:
     build: .
-    environment:
-      NODE_ENV: development
-      PORT: 3000
-      LOG_LEVEL: info
-      DATABASE_URL: postgres://wagering:wagering@postgres:5432/wagering
-      AWS_REGION: us-east-1
-      AWS_ACCESS_KEY_ID: test
-      AWS_SECRET_ACCESS_KEY: test
-      AWS_ENDPOINT_URL: http://localstack:4566
-      SQS_QUEUE_URL: http://localstack:4566/000000000000/wager-transactions.fifo
+    environment: *service-env
     ports:
       - '3000-3002:3000'
     depends_on:
