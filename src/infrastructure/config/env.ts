@@ -1,4 +1,3 @@
-import { Global, Module } from '@nestjs/common';
 import { z } from 'zod';
 
 const envSchema = z.object({
@@ -8,11 +7,6 @@ const envSchema = z.object({
 });
 
 export type Env = z.infer<typeof envSchema>;
-export const ENV = Symbol('ENV');
 
-@Global()
-@Module({
-  providers: [{ provide: ENV, useFactory: (): Env => envSchema.parse(process.env) }],
-  exports: [ENV],
-})
-export class ConfigModule {}
+// Lê e valida as variáveis de ambiente uma única vez, quando o processo sobe.
+export const env: Env = envSchema.parse(process.env);
