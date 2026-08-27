@@ -35,6 +35,6 @@
       "@test/*": ["test/*"]
     }
   },
-  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "include": ["src/**/*.ts", "test/**/*.ts", "mikro-orm.config.ts"],
   "exclude": ["node_modules", "dist"]
 }

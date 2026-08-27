@@ -31,6 +31,19 @@ services:
       timeout: 5s
       retries: 20
 
+  # Roda uma vez, aplica as migrations e sai. A app só sobe depois que este passo termina
+  # com sucesso, então as 3 instâncias encontram o schema pronto e nenhuma tenta migrar junto.
+  migrate:
+    build: .
+    command: ['bun', 'run', 'migration:up']
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgres://wagering:wagering@postgres:5432/wagering
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+
   app:
     build: .
     environment:
@@ -50,6 +63,8 @@ services:
         condition: service_healthy
       localstack:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: ['CMD-SHELL', 'bun -e "await fetch(\"http://localhost:3000/health/live\")"']
       interval: 10s

@@ -5,7 +5,7 @@ WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 
-COPY tsconfig.json ./
+COPY tsconfig.json mikro-orm.config.ts ./
 COPY src ./src
 
 EXPOSE 3000
