@@ -1,4 +1,7 @@
-import { UniqueConstraintViolationException } from '@mikro-orm/core';
+import {
+  ForeignKeyConstraintViolationException,
+  UniqueConstraintViolationException,
+} from '@mikro-orm/core';
 
 // Códigos do Postgres: falha de serialização, deadlock e a classe 08, de conexão.
 const RETRYABLE_CODES = ['40001', '40P01'];
@@ -28,6 +31,10 @@ export function isRetryableDatabaseError(error: unknown): boolean {
 
 export function isUniqueViolation(error: unknown): boolean {
   return error instanceof UniqueConstraintViolationException;
+}
+
+export function isForeignKeyViolation(error: unknown): boolean {
+  return error instanceof ForeignKeyConstraintViolationException;
 }
 
 /** O UPDATE do saldo não afetou nenhuma linha: a wallet mudou sem passar pelo lock. */

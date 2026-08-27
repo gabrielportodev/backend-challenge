@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
-import { CurrencyMismatchError, InsufficientFundsError, InvalidMoneyError } from '@domain/errors';
 import { Money } from '@domain/shared/money';
 import { Wallet } from '@domain/wallet/wallet';
+import { expectFailure } from '@test/support/failure';
 
 const brl = (amount: string) => Money.from({ amount, currency: 'BRL' });
 const openedAt = new Date('2026-01-01T00:00:00.000Z');
@@ -64,7 +64,7 @@ describe('Wallet.open', () => {
   });
 
   it('rejeita saldo inicial negativo', () => {
-    expect(() => open('-1.00')).toThrow(InvalidMoneyError);
+    expectFailure(() => open('-1.00'), 'INVALID_MONEY');
   });
 });
 
@@ -120,7 +120,7 @@ describe('debito e credito', () => {
   it('rejeita debito que deixaria o saldo negativo sem alterar o estado', () => {
     const wallet = openWallet('100.00');
 
-    expect(() => wallet.debit(movement('100.01'))).toThrow(InsufficientFundsError);
+    expectFailure(() => wallet.debit(movement('100.01')), 'INSUFFICIENT_FUNDS');
     expect(wallet.balance.toString()).toBe('100.00');
     expect(wallet.version).toBe(1);
     expect(wallet.updatedAt).toEqual(openedAt);
@@ -129,8 +129,8 @@ describe('debito e credito', () => {
   it.each([['0.00'], ['-10.00']])('rejeita movimentacao de valor %p', (amount) => {
     const wallet = openWallet('100.00');
 
-    expect(() => wallet.debit(movement(amount))).toThrow(InvalidMoneyError);
-    expect(() => wallet.credit(movement(amount))).toThrow(InvalidMoneyError);
+    expectFailure(() => wallet.debit(movement(amount)), 'INVALID_MONEY');
+    expectFailure(() => wallet.credit(movement(amount)), 'INVALID_MONEY');
     expect(wallet.version).toBe(1);
   });
 
@@ -138,8 +138,8 @@ describe('debito e credito', () => {
     const wallet = openWallet('100.00');
     const usd = { ...movement('10.00'), money: Money.from({ amount: '10.00', currency: 'USD' }) };
 
-    expect(() => wallet.debit(usd)).toThrow(CurrencyMismatchError);
-    expect(() => wallet.credit(usd)).toThrow(CurrencyMismatchError);
+    expectFailure(() => wallet.debit(usd), 'CURRENCY_MISMATCH');
+    expectFailure(() => wallet.credit(usd), 'CURRENCY_MISMATCH');
   });
 
   it('mantem saldo igual ao reconstruido pelo ledger desde a abertura', () => {
@@ -172,8 +172,9 @@ describe('hasSufficientFunds', () => {
   });
 
   it('rejeita comparacao em moeda diferente', () => {
-    expect(() =>
-      openWallet().hasSufficientFunds(Money.from({ amount: '1.00', currency: 'USD' })),
-    ).toThrow(CurrencyMismatchError);
+    expectFailure(
+      () => openWallet().hasSufficientFunds(Money.from({ amount: '1.00', currency: 'USD' })),
+      'CURRENCY_MISMATCH',
+    );
   });
 });

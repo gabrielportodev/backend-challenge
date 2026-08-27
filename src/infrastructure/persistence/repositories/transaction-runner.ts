@@ -1,6 +1,6 @@
 import type { TransactionRunner } from '@application/ports';
-import { type EntityManager, IsolationLevel } from '@mikro-orm/postgresql';
-import { Injectable } from '@nestjs/common';
+import { EntityManager, IsolationLevel } from '@mikro-orm/postgresql';
+import { Inject, Injectable } from '@nestjs/common';
 import { isRetryableDatabaseError } from '../database-error';
 
 const MAX_ATTEMPTS = 3;
@@ -19,7 +19,7 @@ function sleep(ms: number): Promise<void> {
 
 @Injectable()
 export class MikroTransactionRunner implements TransactionRunner {
-  constructor(private readonly em: EntityManager) {}
+  constructor(@Inject(EntityManager) private readonly em: EntityManager) {}
 
   /**
    * READ COMMITTED porque a linha da wallet já é travada com FOR UPDATE; isolamento maior

@@ -1,5 +1,4 @@
-import type { FailureCode } from '@domain/errors';
-import { InvalidTransactionStateError, MissingReferenceError } from '@domain/errors';
+import { DomainError, type FailureCode } from '@domain/errors';
 import type { MoneyProps } from '@domain/shared/money';
 import type { WagerTransaction, WagerTransactionKind } from '@domain/wagering/wager-transaction';
 import { type EventContext, IntegrationEvent } from './integration-event';
@@ -65,10 +64,14 @@ export class WagerTransactionRejected extends IntegrationEvent<WagerTransactionR
 
   static from(transaction: WagerTransaction, ctx: EventContext): WagerTransactionRejected {
     if (!transaction.failureCode) {
-      throw new InvalidTransactionStateError('Rejeição sem failureCode não vira evento', {
-        transactionId: transaction.id,
-        status: transaction.status,
-      });
+      throw new DomainError(
+        'INVALID_TRANSACTION_STATE',
+        'Rejeição sem failureCode não vira evento',
+        {
+          transactionId: transaction.id,
+          status: transaction.status,
+        },
+      );
     }
 
     return new WagerTransactionRejected({
@@ -85,10 +88,14 @@ export class WagerTransactionPendingReference extends IntegrationEvent<WagerTran
 
   static from(transaction: WagerTransaction, ctx: EventContext): WagerTransactionPendingReference {
     if (!transaction.referenceExternalTransactionId) {
-      throw new MissingReferenceError('Pendência de referência exige a referência buscada', {
-        transactionId: transaction.id,
-        kind: transaction.kind,
-      });
+      throw new DomainError(
+        'VALIDATION_FAILED',
+        'Pendência de referência exige a referência buscada',
+        {
+          transactionId: transaction.id,
+          kind: transaction.kind,
+        },
+      );
     }
 
     return new WagerTransactionPendingReference({

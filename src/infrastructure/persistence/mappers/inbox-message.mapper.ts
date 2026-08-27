@@ -11,11 +11,9 @@ export function inboxToDomain(row: InboxMessageEntity): InboxMessage {
   });
 }
 
-/** Recebe a linha já carregada quando é update; sem ela, monta uma nova para insert. */
-export function inboxToEntity(
-  message: InboxMessage,
-  row: InboxMessageEntity = new InboxMessageEntity(),
-): InboxMessageEntity {
+export function inboxToEntity(message: InboxMessage): InboxMessageEntity {
+  const row = new InboxMessageEntity();
+
   row.consumerName = message.consumerName;
   row.messageId = message.messageId;
   row.payloadHash = message.payloadHash;

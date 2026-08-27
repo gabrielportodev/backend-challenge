@@ -1,4 +1,4 @@
-import type { WagerTransaction } from '@domain/wagering/wager-transaction';
+import type { WagerTransaction, WagerTransactionKind } from '@domain/wagering/wager-transaction';
 
 export const WAGER_TRANSACTION_REPOSITORY = 'WagerTransactionRepository';
 
@@ -20,6 +20,16 @@ export interface WagerTransactionRepository {
   /** Fila do worker que reprocessa quem chegou antes da referência, da mais antiga para a mais nova. */
   findPendingReference(limit: number): Promise<WagerTransaction[]>;
 
+  /**
+   * Reversão do mesmo tipo já aplicada sobre a referência. O índice parcial no banco é a
+   * garantia; esta busca existe para responder com uma rejeição em vez de estourar a transação.
+   */
+  findReversal(
+    referenceTransactionId: string,
+    kind: WagerTransactionKind,
+  ): Promise<WagerTransaction | null>;
+
+  /** Colide quando a chave de idempotência ou o externalTransactionId já foram usados. */
   insert(transaction: WagerTransaction): Promise<void>;
 
   update(transaction: WagerTransaction): Promise<void>;

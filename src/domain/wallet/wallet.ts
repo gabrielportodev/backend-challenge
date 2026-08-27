@@ -1,4 +1,4 @@
-import { CurrencyMismatchError, InsufficientFundsError, InvalidMoneyError } from '@domain/errors';
+import { DomainError } from '@domain/errors';
 import { Money, type MoneyProps } from '@domain/shared/money';
 import { type LedgerDirection, WalletLedgerEntry } from './wallet-ledger-entry';
 
@@ -53,7 +53,8 @@ export class Wallet {
    */
   static open(props: OpenWalletProps): OpenedWallet {
     if (props.initialBalance.isNegative()) {
-      throw new InvalidMoneyError(
+      throw new DomainError(
+        'INVALID_MONEY',
         `Saldo inicial não pode ser negativo: ${props.initialBalance.toString()}`,
         {
           playerId: props.playerId,
@@ -132,7 +133,8 @@ export class Wallet {
     this.assertSameCurrency(movement.money);
 
     if (!movement.money.isPositive()) {
-      throw new InvalidMoneyError(
+      throw new DomainError(
+        'INVALID_MONEY',
         `Movimentação exige valor positivo: ${movement.money.toString()}`,
         {
           walletId: this.id,
@@ -148,7 +150,7 @@ export class Wallet {
         : balanceBefore.add(movement.money);
 
     if (balanceAfter.isNegative()) {
-      throw new InsufficientFundsError('Movimentação deixaria o saldo negativo', {
+      throw new DomainError('INSUFFICIENT_FUNDS', 'Movimentação deixaria o saldo negativo', {
         walletId: this.id,
         transactionId: movement.transactionId,
         balance: balanceBefore.toString(),
@@ -176,7 +178,11 @@ export class Wallet {
 
   private assertSameCurrency(money: Money): void {
     if (this.currency !== money.currency) {
-      throw new CurrencyMismatchError(this.currency, money.currency);
+      throw new DomainError(
+        'CURRENCY_MISMATCH',
+        `Moeda incompatível: esperado ${this.currency}, recebido ${money.currency}`,
+        { expected: this.currency, received: money.currency },
+      );
     }
   }
 }

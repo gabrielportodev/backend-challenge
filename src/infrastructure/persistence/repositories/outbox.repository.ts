@@ -1,13 +1,13 @@
 import type { OutboxRepository } from '@application/ports';
 import type { OutboxMessage } from '@domain/messaging/outbox-message';
-import { type EntityManager, LockMode } from '@mikro-orm/postgresql';
-import { Injectable } from '@nestjs/common';
+import { EntityManager, LockMode } from '@mikro-orm/postgresql';
+import { Inject, Injectable } from '@nestjs/common';
 import { OutboxMessageEntity } from '../entities';
 import { outboxToDomain, outboxToEntity } from '../mappers';
 
 @Injectable()
 export class MikroOutboxRepository implements OutboxRepository {
-  constructor(private readonly em: EntityManager) {}
+  constructor(@Inject(EntityManager) private readonly em: EntityManager) {}
 
   async enqueue(message: OutboxMessage): Promise<void> {
     await this.em.insert(OutboxMessageEntity, outboxToEntity(message));

@@ -89,25 +89,6 @@ describe('mapper de wallet', () => {
     expect(typeof row.balanceAmount).toBe('string');
   });
 
-  it('reaproveita a linha ja carregada quando e update', () => {
-    const wallet = abrirWallet();
-    const existente = walletToEntity(wallet);
-
-    wallet.debit({
-      transactionId: '018f2f00-0000-7000-8000-000000000010',
-      ledgerEntryId: '018f2f00-0000-7000-8000-000000000011',
-      money: brl('30.00'),
-      at: depois,
-    });
-
-    const atualizada = walletToEntity(wallet, existente);
-
-    expect(atualizada).toBe(existente);
-    expect(atualizada.balanceAmount).toBe('70.00');
-    expect(atualizada.version).toBe(2);
-    expect(atualizada.updatedAt).toEqual(depois);
-  });
-
   it('monta uma linha nova quando nao recebe nenhuma', () => {
     expect(walletToEntity(abrirWallet())).toBeInstanceOf(WalletEntity);
   });

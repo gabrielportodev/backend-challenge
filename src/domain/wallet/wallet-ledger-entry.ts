@@ -1,4 +1,4 @@
-import { InvalidMoneyError, UnbalancedLedgerEntryError } from '@domain/errors';
+import { DomainError } from '@domain/errors';
 import { Money, type MoneyProps } from '@domain/shared/money';
 
 export type LedgerDirection = 'DEBIT' | 'CREDIT';
@@ -41,10 +41,14 @@ export class WalletLedgerEntry {
   /** Valida a conta do lançamento: um lançamento torto nunca chega a existir. */
   static create(props: CreateLedgerEntryProps): WalletLedgerEntry {
     if (!props.money.isPositive()) {
-      throw new InvalidMoneyError(`Lançamento exige valor positivo: ${props.money.toString()}`, {
-        transactionId: props.transactionId,
-        walletId: props.walletId,
-      });
+      throw new DomainError(
+        'INVALID_MONEY',
+        `Lançamento exige valor positivo: ${props.money.toString()}`,
+        {
+          transactionId: props.transactionId,
+          walletId: props.walletId,
+        },
+      );
     }
 
     const entry = new WalletLedgerEntry(
@@ -59,7 +63,7 @@ export class WalletLedgerEntry {
     );
 
     if (!entry.isBalanced()) {
-      throw new UnbalancedLedgerEntryError('Aritmética do lançamento não fecha', {
+      throw new DomainError('LEDGER_ENTRY_UNBALANCED', 'Aritmética do lançamento não fecha', {
         transactionId: props.transactionId,
         walletId: props.walletId,
         direction: props.direction,

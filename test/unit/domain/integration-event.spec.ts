@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'bun:test';
-import { InvalidTransactionStateError, MissingReferenceError } from '@domain/errors';
 import {
   type EventContext,
   WagerTransactionPendingReference,
@@ -13,6 +12,7 @@ import {
   WagerTransaction,
 } from '@domain/wagering/wager-transaction';
 import { Wallet } from '@domain/wallet/wallet';
+import { expectFailure } from '@test/support/failure';
 
 const occurredAt = new Date('2026-01-01T00:00:00.000Z');
 
@@ -119,9 +119,7 @@ describe('WagerTransactionRejected', () => {
   });
 
   it('recusa rejeição sem failureCode', () => {
-    expect(() => WagerTransactionRejected.from(makeTx(), ctx)).toThrow(
-      InvalidTransactionStateError,
-    );
+    expectFailure(() => WagerTransactionRejected.from(makeTx(), ctx), 'INVALID_TRANSACTION_STATE');
   });
 });
 
@@ -139,9 +137,7 @@ describe('WagerTransactionPendingReference', () => {
   });
 
   it('recusa transação sem referência', () => {
-    expect(() => WagerTransactionPendingReference.from(makeTx(), ctx)).toThrow(
-      MissingReferenceError,
-    );
+    expectFailure(() => WagerTransactionPendingReference.from(makeTx(), ctx), 'VALIDATION_FAILED');
   });
 });
 

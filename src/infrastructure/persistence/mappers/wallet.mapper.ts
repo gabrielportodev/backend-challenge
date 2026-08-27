@@ -17,11 +17,9 @@ export function walletToDomain(row: WalletEntity): Wallet {
   });
 }
 
-/** Recebe a linha já carregada quando é update; sem ela, monta uma nova para insert. */
-export function walletToEntity(
-  wallet: Wallet,
-  row: WalletEntity = new WalletEntity(),
-): WalletEntity {
+export function walletToEntity(wallet: Wallet): WalletEntity {
+  const row = new WalletEntity();
+
   row.id = wallet.id;
   row.playerId = wallet.playerId;
   row.currency = wallet.currency;

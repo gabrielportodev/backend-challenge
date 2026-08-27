@@ -1,15 +1,15 @@
-import type { LedgerPage, LedgerRepository } from '@application/ports';
+import type { LedgerPage, LedgerRepository, LedgerSummary } from '@application/ports';
 import { Money } from '@domain/shared/money';
 import type { WalletLedgerEntry } from '@domain/wallet/wallet-ledger-entry';
-import type { EntityManager } from '@mikro-orm/postgresql';
-import { Injectable } from '@nestjs/common';
+import { EntityManager } from '@mikro-orm/postgresql';
+import { Inject, Injectable } from '@nestjs/common';
 import { WalletLedgerEntryEntity } from '../entities';
 import { ledgerEntryToDomain, ledgerEntryToEntity } from '../mappers';
 import { decodeLedgerCursor, encodeLedgerCursor } from './ledger-cursor';
 
 @Injectable()
 export class MikroLedgerRepository implements LedgerRepository {
-  constructor(private readonly em: EntityManager) {}
+  constructor(@Inject(EntityManager) private readonly em: EntityManager) {}
 
   async append(entry: WalletLedgerEntry): Promise<void> {
     await this.em.insert(WalletLedgerEntryEntity, ledgerEntryToEntity(entry));
@@ -40,15 +40,19 @@ export class MikroLedgerRepository implements LedgerRepository {
     };
   }
 
-  /** Soma no banco em vez de carregar o extrato: a wallet pode ter milhões de lançamentos. */
-  async computeBalance(walletId: string, currency: string): Promise<Money> {
-    const rows = await this.em.execute<{ total: string }[]>(
-      `select coalesce(sum(case when direction = 'DEBIT' then -amount else amount end), 0)::numeric(19,2)::text as total
+  /** Soma e conta no banco, numa consulta só: a wallet pode ter milhões de lançamentos. */
+  async summarize(walletId: string, currency: string): Promise<LedgerSummary> {
+    const rows = await this.em.execute<{ total: string; entries: string }[]>(
+      `select coalesce(sum(case when direction = 'DEBIT' then -amount else amount end), 0)::numeric(19,2)::text as total,
+              count(*)::text as entries
          from wallet_ledger_entries
         where wallet_id = ?`,
       [walletId],
     );
 
-    return Money.from({ amount: rows[0]?.total ?? '0.00', currency });
+    return {
+      balance: Money.from({ amount: rows[0]?.total ?? '0.00', currency }),
+      entries: Number(rows[0]?.entries ?? 0),
+    };
   }
 }

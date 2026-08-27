@@ -1,13 +1,16 @@
+import { DuplicateTransactionError } from '@application/errors';
 import type { WagerTransactionRepository } from '@application/ports';
-import type { WagerTransaction } from '@domain/wagering/wager-transaction';
-import type { EntityManager } from '@mikro-orm/postgresql';
-import { Injectable } from '@nestjs/common';
+import { walletNotFound } from '@domain/errors';
+import type { WagerTransaction, WagerTransactionKind } from '@domain/wagering/wager-transaction';
+import { EntityManager } from '@mikro-orm/postgresql';
+import { Inject, Injectable } from '@nestjs/common';
+import { isForeignKeyViolation, isUniqueViolation } from '../database-error';
 import { WagerTransactionEntity } from '../entities';
 import { transactionToDomain, transactionToEntity } from '../mappers';
 
 @Injectable()
 export class MikroWagerTransactionRepository implements WagerTransactionRepository {
-  constructor(private readonly em: EntityManager) {}
+  constructor(@Inject(EntityManager) private readonly em: EntityManager) {}
 
   async findById(id: string): Promise<WagerTransaction | null> {
     const row = await this.em.findOne(WagerTransactionEntity, { id });
@@ -46,12 +49,40 @@ export class MikroWagerTransactionRepository implements WagerTransactionReposito
     return rows.map(transactionToDomain);
   }
 
+  async findReversal(
+    referenceTransactionId: string,
+    kind: WagerTransactionKind,
+  ): Promise<WagerTransaction | null> {
+    const row = await this.em.findOne(WagerTransactionEntity, {
+      referenceTransactionId,
+      kind,
+      status: 'PROCESSED',
+    });
+
+    return row ? transactionToDomain(row) : null;
+  }
+
   /**
    * Insere na hora, sem esperar o flush do fim da transação: é esta escrita que colide no
    * unique `(provider_id, idempotency_key)` e barra a duplicata antes de qualquer lock.
+   *
+   * A FK de `wallet_id` também é checada aqui, então wallet inexistente aparece como rejeição
+   * de negócio em vez de erro de driver — e sem custar uma consulta a mais no caminho feliz.
    */
   async insert(transaction: WagerTransaction): Promise<void> {
-    await this.em.insert(WagerTransactionEntity, transactionToEntity(transaction));
+    try {
+      await this.em.insert(WagerTransactionEntity, transactionToEntity(transaction));
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw new DuplicateTransactionError('wager_transactions');
+      }
+
+      if (isForeignKeyViolation(error)) {
+        throw walletNotFound(transaction.walletId);
+      }
+
+      throw error;
+    }
   }
 
   async update(transaction: WagerTransaction): Promise<void> {

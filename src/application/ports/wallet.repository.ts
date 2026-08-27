@@ -5,8 +5,6 @@ export const WALLET_REPOSITORY = 'WalletRepository';
 export interface WalletRepository {
   findById(id: string): Promise<Wallet | null>;
 
-  findByPlayer(playerId: string, currency: string): Promise<Wallet | null>;
-
   /**
    * Carrega travando a linha com SELECT ... FOR UPDATE. Só funciona dentro de uma transação
    * e é o único caminho permitido antes de mexer no saldo.

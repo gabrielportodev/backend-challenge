@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
-import { CurrencyMismatchError, InvalidMoneyError } from '@domain/errors';
+import { DomainError } from '@domain/errors';
 import { Money } from '@domain/shared/money';
+import { expectFailure } from '@test/support/failure';
 
 const brl = (amount: string) => Money.from({ amount, currency: 'BRL' });
 
@@ -31,17 +32,18 @@ describe('Money.from', () => {
     '1,00',
     '25 ',
   ])('rejeita o valor %p', (amount) => {
-    expect(() => brl(amount)).toThrow(InvalidMoneyError);
+    expectFailure(() => brl(amount), 'INVALID_MONEY');
   });
 
   it('rejeita valores nao string', () => {
-    expect(() => Money.from({ amount: 25 as unknown as string, currency: 'BRL' })).toThrow(
-      InvalidMoneyError,
+    expectFailure(
+      () => Money.from({ amount: 25 as unknown as string, currency: 'BRL' }),
+      'INVALID_MONEY',
     );
   });
 
   it.each(['', 'BR', 'BRLL', 'brl', '123'])('rejeita a moeda %p', (currency) => {
-    expect(() => Money.from({ amount: '1.00', currency })).toThrow(InvalidMoneyError);
+    expectFailure(() => Money.from({ amount: '1.00', currency }), 'INVALID_MONEY');
   });
 
   it('preserva precisao em valores grandes', () => {
@@ -49,7 +51,7 @@ describe('Money.from', () => {
   });
 
   it('rejeita valores acima da faixa suportada', () => {
-    expect(() => brl('100000000000000000.00')).toThrow(InvalidMoneyError);
+    expectFailure(() => brl('100000000000000000.00'), 'INVALID_MONEY');
   });
 });
 
@@ -59,7 +61,7 @@ describe('Money.fromPositive', () => {
   });
 
   it.each(['0.00', '-1.00'])('rejeita o valor %p', (amount) => {
-    expect(() => Money.fromPositive({ amount, currency: 'BRL' })).toThrow(InvalidMoneyError);
+    expectFailure(() => Money.fromPositive({ amount, currency: 'BRL' }), 'INVALID_MONEY');
   });
 });
 
@@ -89,7 +91,7 @@ describe('operacoes', () => {
 
   it('estoura a faixa suportada na soma', () => {
     const max = brl('99999999999999999.99');
-    expect(() => max.add(brl('0.01'))).toThrow(InvalidMoneyError);
+    expectFailure(() => max.add(brl('0.01')), 'INVALID_MONEY');
   });
 });
 
@@ -114,8 +116,8 @@ describe('conflito de moeda', () => {
     ['add', (m: Money) => m.add(usd)],
     ['subtract', (m: Money) => m.subtract(usd)],
     ['isLessThan', (m: Money) => m.isLessThan(usd)],
-  ])('%s lanca CurrencyMismatchError', (_name, operation) => {
-    expect(() => operation(brl('10.00'))).toThrow(CurrencyMismatchError);
+  ])('%s lanca DomainError', (_name, operation) => {
+    expectFailure(() => operation(brl('10.00')), 'CURRENCY_MISMATCH');
   });
 
   it('expoe o failureCode e os detalhes', () => {
@@ -123,9 +125,9 @@ describe('conflito de moeda', () => {
       brl('10.00').add(usd);
       expect.unreachable();
     } catch (error) {
-      expect(error).toBeInstanceOf(CurrencyMismatchError);
-      expect((error as CurrencyMismatchError).failureCode).toBe('CURRENCY_MISMATCH');
-      expect((error as CurrencyMismatchError).details).toEqual({
+      expect(error).toBeInstanceOf(DomainError);
+      expect((error as DomainError).failureCode).toBe('CURRENCY_MISMATCH');
+      expect((error as DomainError).details).toEqual({
         expected: 'BRL',
         received: 'USD',
       });

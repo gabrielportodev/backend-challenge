@@ -1,23 +1,18 @@
 import type { WalletRepository } from '@application/ports';
+import { DomainError } from '@domain/errors';
 import type { Wallet } from '@domain/wallet/wallet';
-import { type EntityManager, LockMode } from '@mikro-orm/postgresql';
-import { Injectable } from '@nestjs/common';
-import { StaleWalletVersionError } from '../database-error';
+import { EntityManager, LockMode } from '@mikro-orm/postgresql';
+import { Inject, Injectable } from '@nestjs/common';
+import { isUniqueViolation, StaleWalletVersionError } from '../database-error';
 import { WalletEntity } from '../entities';
 import { walletToDomain, walletToEntity } from '../mappers';
 
 @Injectable()
 export class MikroWalletRepository implements WalletRepository {
-  constructor(private readonly em: EntityManager) {}
+  constructor(@Inject(EntityManager) private readonly em: EntityManager) {}
 
   async findById(id: string): Promise<Wallet | null> {
     const row = await this.em.findOne(WalletEntity, { id });
-
-    return row ? walletToDomain(row) : null;
-  }
-
-  async findByPlayer(playerId: string, currency: string): Promise<Wallet | null> {
-    const row = await this.em.findOne(WalletEntity, { playerId, currency });
 
     return row ? walletToDomain(row) : null;
   }
@@ -37,7 +32,20 @@ export class MikroWalletRepository implements WalletRepository {
   }
 
   async insert(wallet: Wallet): Promise<void> {
-    await this.em.insert(WalletEntity, walletToEntity(wallet));
+    try {
+      await this.em.insert(WalletEntity, walletToEntity(wallet));
+    } catch (error) {
+      // O unique (player_id, currency) é quem decide o vencedor entre duas criações concorrentes.
+      if (isUniqueViolation(error)) {
+        throw new DomainError(
+          'WALLET_ALREADY_EXISTS',
+          `Já existe wallet de ${wallet.currency} para o player ${wallet.playerId}`,
+          { playerId: wallet.playerId, currency: wallet.currency },
+        );
+      }
+
+      throw error;
+    }
   }
 
   async update(wallet: Wallet, expectedVersion: number): Promise<void> {

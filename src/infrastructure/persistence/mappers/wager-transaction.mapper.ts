@@ -23,11 +23,9 @@ export function transactionToDomain(row: WagerTransactionEntity): WagerTransacti
   });
 }
 
-/** Recebe a linha já carregada quando é update; sem ela, monta uma nova para insert. */
-export function transactionToEntity(
-  transaction: WagerTransaction,
-  row: WagerTransactionEntity = new WagerTransactionEntity(),
-): WagerTransactionEntity {
+export function transactionToEntity(transaction: WagerTransaction): WagerTransactionEntity {
+  const row = new WagerTransactionEntity();
+
   row.id = transaction.id;
   row.providerId = transaction.providerId;
   row.externalTransactionId = transaction.externalTransactionId;

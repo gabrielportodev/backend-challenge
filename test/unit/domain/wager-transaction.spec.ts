@@ -1,10 +1,4 @@
 import { describe, expect, it } from 'bun:test';
-import {
-  InvalidMoneyError,
-  InvalidTransactionStateError,
-  MissingReferenceError,
-  TransactionKindNotAcceptedError,
-} from '@domain/errors';
 import { Money } from '@domain/shared/money';
 import {
   type CreateWagerTransactionProps,
@@ -12,6 +6,7 @@ import {
   type WagerTransactionKind,
 } from '@domain/wagering/wager-transaction';
 import type { LedgerDirection } from '@domain/wallet/wallet-ledger-entry';
+import { expectFailure } from '@test/support/failure';
 
 const createdAt = new Date('2026-01-01T00:00:00.000Z');
 const processedAt = new Date('2026-01-02T00:00:00.000Z');
@@ -45,7 +40,7 @@ describe('WagerTransaction.create', () => {
   });
 
   it.each(['REFUND', 'ROLLBACK'])('exige referencia para %s', (kind) => {
-    expect(() => makeTx({ kind })).toThrow(MissingReferenceError);
+    expectFailure(() => makeTx({ kind }), 'VALIDATION_FAILED');
     expect(makeTx({ kind, referenceExternalTransactionId: 'ext-0' }).requiresReference()).toBe(
       true,
     );
@@ -62,16 +57,18 @@ describe('WagerTransaction.create', () => {
   });
 
   it.each([['0.00'], ['-1.00']])('rejeita valor %p', (amount) => {
-    expect(() => makeTx({ money: Money.from({ amount, currency: 'BRL' }) })).toThrow(
-      InvalidMoneyError,
+    expectFailure(
+      () => makeTx({ money: Money.from({ amount, currency: 'BRL' }) }),
+      'INVALID_MONEY',
     );
   });
 });
 
 describe('assertExternallySubmittable', () => {
   it('recusa OPENING', () => {
-    expect(() => WagerTransaction.assertExternallySubmittable('OPENING')).toThrow(
-      TransactionKindNotAcceptedError,
+    expectFailure(
+      () => WagerTransaction.assertExternallySubmittable('OPENING'),
+      'TRANSACTION_KIND_NOT_ACCEPTED',
     );
   });
 
@@ -153,7 +150,7 @@ describe('transicoes', () => {
         const tx = makeTx();
         toTerminal(tx);
 
-        expect(() => transition(tx)).toThrow(InvalidTransactionStateError);
+        expectFailure(() => transition(tx), 'INVALID_TRANSACTION_STATE');
       });
     }
   }
@@ -162,7 +159,7 @@ describe('transicoes', () => {
     const tx = makeTx();
     tx.reject('INSUFFICIENT_FUNDS');
 
-    expect(() => tx.markProcessed('tx-0', processedAt)).toThrow(InvalidTransactionStateError);
+    expectFailure(() => tx.markProcessed('tx-0', processedAt), 'INVALID_TRANSACTION_STATE');
     expect(tx.status).toBe('REJECTED');
     expect(tx.failureCode).toBe('INSUFFICIENT_FUNDS');
     expect(tx.processedAt).toBeUndefined();
@@ -207,9 +204,7 @@ describe('ledgerDirectionFor', () => {
   });
 
   it('LOSS nao tem direcao', () => {
-    expect(() => makeTx({ kind: 'LOSS' }).ledgerDirectionFor()).toThrow(
-      InvalidTransactionStateError,
-    );
+    expectFailure(() => makeTx({ kind: 'LOSS' }).ledgerDirectionFor(), 'INVALID_TRANSACTION_STATE');
   });
 
   it('ROLLBACK sem referencia nao tem direcao', () => {
@@ -218,7 +213,7 @@ describe('ledgerDirectionFor', () => {
       referenceExternalTransactionId: 'ext-0',
     });
 
-    expect(() => rollback.ledgerDirectionFor()).toThrow(InvalidTransactionStateError);
+    expectFailure(() => rollback.ledgerDirectionFor(), 'INVALID_TRANSACTION_STATE');
   });
 
   it.each(direcoesInvertidas)('ROLLBACK de %s inverte para %s', (referenceKind, direction) => {

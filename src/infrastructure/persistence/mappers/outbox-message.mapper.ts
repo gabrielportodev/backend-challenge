@@ -14,11 +14,9 @@ export function outboxToDomain(row: OutboxMessageEntity): OutboxMessage {
   });
 }
 
-/** Recebe a linha já carregada quando é update; sem ela, monta uma nova para insert. */
-export function outboxToEntity(
-  message: OutboxMessage,
-  row: OutboxMessageEntity = new OutboxMessageEntity(),
-): OutboxMessageEntity {
+export function outboxToEntity(message: OutboxMessage): OutboxMessageEntity {
+  const row = new OutboxMessageEntity();
+
   row.id = message.id;
   row.aggregateId = message.aggregateId;
   row.eventType = message.eventType;

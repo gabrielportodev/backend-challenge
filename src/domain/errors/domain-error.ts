@@ -1,58 +1,22 @@
 import type { FailureCode } from './failure-code';
 
-export abstract class DomainError extends Error {
-  abstract readonly failureCode: FailureCode;
-
+/**
+ * Toda falha de domínio, de validação de entrada a invariante quebrada. Quem diferencia os casos
+ * é o `failureCode`: é ele que vai para a resposta da API, para o evento e para a tabela de
+ * status HTTP. Subclasse por motivo só repetiria o que o código já diz.
+ */
+export class DomainError extends Error {
   constructor(
+    readonly failureCode: FailureCode,
     message: string,
     readonly details: Record<string, unknown> = {},
   ) {
     super(message);
-    this.name = this.constructor.name;
+    this.name = 'DomainError';
   }
 }
 
-/** Entrada malformada: não chega a ser avaliada pelas regras de negócio. */
-export abstract class DomainValidationError extends DomainError {}
-
-/** Regra de negócio violada: a transação vira REJECTED e o failureCode vai para o cliente. */
-export abstract class BusinessRejectionError extends DomainError {}
-
-/** Invariante quebrada: estado inconsistente, não deve virar resposta de negócio. */
-export abstract class DomainInvariantError extends DomainError {}
-
-export class InvalidMoneyError extends DomainValidationError {
-  readonly failureCode = 'INVALID_MONEY';
-}
-
-export class MissingReferenceError extends DomainValidationError {
-  readonly failureCode = 'VALIDATION_FAILED';
-}
-
-export class TransactionKindNotAcceptedError extends DomainValidationError {
-  readonly failureCode = 'TRANSACTION_KIND_NOT_ACCEPTED';
-}
-
-export class CurrencyMismatchError extends BusinessRejectionError {
-  readonly failureCode = 'CURRENCY_MISMATCH';
-
-  constructor(expected: string, received: string) {
-    super(`Moeda incompatível: esperado ${expected}, recebido ${received}`, { expected, received });
-  }
-}
-
-export class InsufficientFundsError extends BusinessRejectionError {
-  readonly failureCode = 'INSUFFICIENT_FUNDS';
-}
-
-export class ReversalWouldOverdrawError extends BusinessRejectionError {
-  readonly failureCode = 'REVERSAL_WOULD_OVERDRAW';
-}
-
-export class InvalidTransactionStateError extends DomainInvariantError {
-  readonly failureCode = 'INVALID_TRANSACTION_STATE';
-}
-
-export class UnbalancedLedgerEntryError extends DomainInvariantError {
-  readonly failureCode = 'LEDGER_ENTRY_UNBALANCED';
+/** Usada em vários pontos, então a mensagem sai de um lugar só. */
+export function walletNotFound(walletId: string): DomainError {
+  return new DomainError('WALLET_NOT_FOUND', `Wallet não encontrada: ${walletId}`, { walletId });
 }

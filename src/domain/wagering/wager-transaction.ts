@@ -1,10 +1,4 @@
-import {
-  type FailureCode,
-  InvalidMoneyError,
-  InvalidTransactionStateError,
-  MissingReferenceError,
-  TransactionKindNotAcceptedError,
-} from '@domain/errors';
+import { DomainError, type FailureCode } from '@domain/errors';
 import { Money, type MoneyProps } from '@domain/shared/money';
 import type { LedgerDirection } from '@domain/wallet/wallet-ledger-entry';
 
@@ -82,16 +76,24 @@ export class WagerTransaction {
   /** Nasce em PENDING e exige referência nos tipos que revertem outra transação. */
   static create(props: CreateWagerTransactionProps): WagerTransaction {
     if (!props.money.isPositive()) {
-      throw new InvalidMoneyError(`Transação exige valor positivo: ${props.money.toString()}`, {
-        externalTransactionId: props.externalTransactionId,
-      });
+      throw new DomainError(
+        'INVALID_MONEY',
+        `Transação exige valor positivo: ${props.money.toString()}`,
+        {
+          externalTransactionId: props.externalTransactionId,
+        },
+      );
     }
 
     if (KINDS_REQUIRING_REFERENCE.includes(props.kind) && !props.referenceExternalTransactionId) {
-      throw new MissingReferenceError(`${props.kind} exige referenceExternalTransactionId`, {
-        externalTransactionId: props.externalTransactionId,
-        kind: props.kind,
-      });
+      throw new DomainError(
+        'VALIDATION_FAILED',
+        `${props.kind} exige referenceExternalTransactionId`,
+        {
+          externalTransactionId: props.externalTransactionId,
+          kind: props.kind,
+        },
+      );
     }
 
     return new WagerTransaction(
@@ -138,9 +140,13 @@ export class WagerTransaction {
   /** OPENING só nasce internamente: a API e a fila precisam recusar esse tipo. */
   static assertExternallySubmittable(kind: WagerTransactionKind): void {
     if (kind === 'OPENING') {
-      throw new TransactionKindNotAcceptedError(`Tipo de transação não aceito na borda: ${kind}`, {
-        kind,
-      });
+      throw new DomainError(
+        'TRANSACTION_KIND_NOT_ACCEPTED',
+        `Tipo de transação não aceito na borda: ${kind}`,
+        {
+          kind,
+        },
+      );
     }
   }
 
@@ -203,10 +209,14 @@ export class WagerTransaction {
   /** BET debita, OPENING/WIN/REFUND creditam e ROLLBACK faz o contrário da referência. */
   ledgerDirectionFor(reference?: WagerTransaction): LedgerDirection {
     if (!this.affectsBalance()) {
-      throw new InvalidTransactionStateError(`${this.kind} não gera lançamento no ledger`, {
-        transactionId: this.id,
-        kind: this.kind,
-      });
+      throw new DomainError(
+        'INVALID_TRANSACTION_STATE',
+        `${this.kind} não gera lançamento no ledger`,
+        {
+          transactionId: this.id,
+          kind: this.kind,
+        },
+      );
     }
 
     if (this.kind !== 'ROLLBACK') {
@@ -214,14 +224,16 @@ export class WagerTransaction {
     }
 
     if (!reference) {
-      throw new InvalidTransactionStateError(
+      throw new DomainError(
+        'INVALID_TRANSACTION_STATE',
         'ROLLBACK precisa da referência para definir a direção',
         { transactionId: this.id },
       );
     }
 
     if (!reference.affectsBalance()) {
-      throw new InvalidTransactionStateError(
+      throw new DomainError(
+        'INVALID_TRANSACTION_STATE',
         `ROLLBACK não pode reverter ${reference.kind}, que não gera lançamento`,
         { transactionId: this.id, referenceKind: reference.kind },
       );
@@ -232,7 +244,8 @@ export class WagerTransaction {
 
   private assertNotTerminal(target: WagerTransactionStatus): void {
     if (this.isTerminal()) {
-      throw new InvalidTransactionStateError(
+      throw new DomainError(
+        'INVALID_TRANSACTION_STATE',
         `Transição inválida de ${this._status} para ${target}`,
         { transactionId: this.id, from: this._status, to: target },
       );

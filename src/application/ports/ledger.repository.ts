@@ -9,6 +9,12 @@ export interface LedgerPage {
   nextCursor?: string;
 }
 
+/** O que a reconciliação precisa saber sobre o ledger de uma wallet. */
+export interface LedgerSummary {
+  balance: Money;
+  entries: number;
+}
+
 export interface LedgerRepository {
   /** Só insere: o ledger é append-only, não existe update nem delete. */
   append(entry: WalletLedgerEntry): Promise<void>;
@@ -16,6 +22,6 @@ export interface LedgerRepository {
   /** Extrato paginado por cursor opaco; a ordem é estável mesmo com inserts concorrentes. */
   listByWallet(walletId: string, limit: number, cursor?: string): Promise<LedgerPage>;
 
-  /** Soma o ledger inteiro para a reconciliação: o resultado tem que bater com o saldo gravado. */
-  computeBalance(walletId: string, currency: string): Promise<Money>;
+  /** Reconstrói o saldo somando o ledger inteiro: tem que bater com o saldo gravado na wallet. */
+  summarize(walletId: string, currency: string): Promise<LedgerSummary>;
 }

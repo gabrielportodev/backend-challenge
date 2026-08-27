@@ -1,11 +1,8 @@
 import { describe, expect, it } from 'bun:test';
-import {
-  CurrencyMismatchError,
-  InvalidMoneyError,
-  UnbalancedLedgerEntryError,
-} from '@domain/errors';
+import type { DomainError } from '@domain/errors';
 import { Money } from '@domain/shared/money';
 import { type CreateLedgerEntryProps, WalletLedgerEntry } from '@domain/wallet/wallet-ledger-entry';
+import { expectFailure } from '@test/support/failure';
 
 const brl = (amount: string) => Money.from({ amount, currency: 'BRL' });
 const createdAt = new Date('2026-01-01T00:00:00.000Z');
@@ -45,29 +42,34 @@ describe('WalletLedgerEntry.create', () => {
   });
 
   it('rejeita debito com saldo final errado', () => {
-    expect(() => WalletLedgerEntry.create(props({ balanceAfter: brl('30.00') }))).toThrow(
-      UnbalancedLedgerEntryError,
+    expectFailure(
+      () => WalletLedgerEntry.create(props({ balanceAfter: brl('30.00') })),
+      'LEDGER_ENTRY_UNBALANCED',
     );
   });
 
   it('rejeita credito lancado como debito', () => {
-    expect(() =>
-      WalletLedgerEntry.create(
-        props({ money: brl('50.00'), balanceBefore: brl('100.00'), balanceAfter: brl('150.00') }),
-      ),
-    ).toThrow(UnbalancedLedgerEntryError);
-  });
-
-  it.each([['0.00'], ['-10.00']])('rejeita lancamento de valor %p', (amount) => {
-    expect(() => WalletLedgerEntry.create(props({ money: brl(amount) }))).toThrow(
-      InvalidMoneyError,
+    expectFailure(
+      () =>
+        WalletLedgerEntry.create(
+          props({ money: brl('50.00'), balanceBefore: brl('100.00'), balanceAfter: brl('150.00') }),
+        ),
+      'LEDGER_ENTRY_UNBALANCED',
     );
   });
 
+  it.each([['0.00'], ['-10.00']])('rejeita lancamento de valor %p', (amount) => {
+    expectFailure(() => WalletLedgerEntry.create(props({ money: brl(amount) })), 'INVALID_MONEY');
+  });
+
   it('rejeita mistura de moedas', () => {
-    expect(() =>
-      WalletLedgerEntry.create(props({ money: Money.from({ amount: '80.00', currency: 'USD' }) })),
-    ).toThrow(CurrencyMismatchError);
+    expectFailure(
+      () =>
+        WalletLedgerEntry.create(
+          props({ money: Money.from({ amount: '80.00', currency: 'USD' }) }),
+        ),
+      'CURRENCY_MISMATCH',
+    );
   });
 
   it('expoe o contexto da falha no erro', () => {
@@ -75,8 +77,8 @@ describe('WalletLedgerEntry.create', () => {
       WalletLedgerEntry.create(props({ balanceAfter: brl('30.00') }));
       expect.unreachable();
     } catch (error) {
-      expect((error as UnbalancedLedgerEntryError).failureCode).toBe('LEDGER_ENTRY_UNBALANCED');
-      expect((error as UnbalancedLedgerEntryError).details).toMatchObject({
+      expect((error as DomainError).failureCode).toBe('LEDGER_ENTRY_UNBALANCED');
+      expect((error as DomainError).details).toMatchObject({
         transactionId: 'tx-1',
         walletId: 'wallet-1',
         balanceBefore: '100.00',

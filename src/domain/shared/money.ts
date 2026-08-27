@@ -1,4 +1,4 @@
-import { CurrencyMismatchError, InvalidMoneyError } from '@domain/errors';
+import { DomainError } from '@domain/errors';
 import { Decimal } from 'decimal.js';
 
 export interface MoneyProps {
@@ -26,10 +26,14 @@ export class Money {
     const currency = Money.parseCurrency(props.currency);
 
     if (typeof props.amount !== 'string' || !AMOUNT_PATTERN.test(props.amount)) {
-      throw new InvalidMoneyError(`Valor monetário inválido: ${JSON.stringify(props.amount)}`, {
-        amount: props.amount,
-        currency,
-      });
+      throw new DomainError(
+        'INVALID_MONEY',
+        `Valor monetário inválido: ${JSON.stringify(props.amount)}`,
+        {
+          amount: props.amount,
+          currency,
+        },
+      );
     }
 
     return new Money(new Decimal(props.amount), currency);
@@ -40,10 +44,14 @@ export class Money {
     const money = Money.from(props);
 
     if (!money.isPositive()) {
-      throw new InvalidMoneyError(`Valor monetário deve ser positivo: ${money.toString()}`, {
-        amount: props.amount,
-        currency: money.currency,
-      });
+      throw new DomainError(
+        'INVALID_MONEY',
+        `Valor monetário deve ser positivo: ${money.toString()}`,
+        {
+          amount: props.amount,
+          currency: money.currency,
+        },
+      );
     }
 
     return money;
@@ -100,7 +108,8 @@ export class Money {
   /** Cria o Money do resultado de uma conta, barrando valor fora da faixa do banco. */
   private build(value: Decimal): Money {
     if (value.abs().greaterThan(MAX_AMOUNT)) {
-      throw new InvalidMoneyError(
+      throw new DomainError(
+        'INVALID_MONEY',
         `Valor monetário excede a faixa suportada: ${value.toFixed(SCALE)}`,
         { currency: this.currency },
       );
@@ -111,13 +120,19 @@ export class Money {
 
   private assertSameCurrency(other: Money): void {
     if (this.currency !== other.currency) {
-      throw new CurrencyMismatchError(this.currency, other.currency);
+      throw new DomainError(
+        'CURRENCY_MISMATCH',
+        `Moeda incompatível: esperado ${this.currency}, recebido ${other.currency}`,
+        { expected: this.currency, received: other.currency },
+      );
     }
   }
 
   private static parseCurrency(currency: string): string {
     if (typeof currency !== 'string' || !CURRENCY_PATTERN.test(currency)) {
-      throw new InvalidMoneyError(`Moeda inválida: ${JSON.stringify(currency)}`, { currency });
+      throw new DomainError('INVALID_MONEY', `Moeda inválida: ${JSON.stringify(currency)}`, {
+        currency,
+      });
     }
 
     return currency;
