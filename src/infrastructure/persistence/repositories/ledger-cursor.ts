@@ -1,8 +1,8 @@
-export class InvalidLedgerCursorError extends Error {
-  constructor(cursor: string) {
-    super(`Cursor inválido: ${cursor}`);
-    this.name = 'InvalidLedgerCursorError';
-  }
+import { DomainError } from '@domain/errors';
+
+// O cursor vem da query string, então cursor quebrado é entrada inválida do cliente, não erro nosso.
+function invalidCursor(cursor: string): DomainError {
+  return new DomainError('VALIDATION_FAILED', `Cursor inválido: ${cursor}`, { cursor });
 }
 
 export interface LedgerCursor {
@@ -23,13 +23,13 @@ export function decodeLedgerCursor(cursor: string): LedgerCursor {
   const [instant, id] = Buffer.from(cursor, 'base64url').toString().split('|');
 
   if (!instant || !id) {
-    throw new InvalidLedgerCursorError(cursor);
+    throw invalidCursor(cursor);
   }
 
   const createdAt = new Date(instant);
 
   if (Number.isNaN(createdAt.getTime())) {
-    throw new InvalidLedgerCursorError(cursor);
+    throw invalidCursor(cursor);
   }
 
   return { createdAt, id };

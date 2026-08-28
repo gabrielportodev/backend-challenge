@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'bun:test';
+import { DomainError } from '@domain/errors';
 import {
   decodeLedgerCursor,
   encodeLedgerCursor,
-  InvalidLedgerCursorError,
 } from '@infrastructure/persistence/repositories/ledger-cursor';
 
 const createdAt = new Date('2026-01-01T00:00:00.000Z');
@@ -24,12 +24,24 @@ describe('cursor do ledger', () => {
   });
 
   it('recusa cursor que não decodifica', () => {
-    expect(() => decodeLedgerCursor('nao-e-um-cursor')).toThrow(InvalidLedgerCursorError);
+    expect(() => decodeLedgerCursor('nao-e-um-cursor')).toThrow(DomainError);
   });
 
   it('recusa cursor com data inválida', () => {
     const cursor = Buffer.from(`ontem|${id}`).toString('base64url');
 
-    expect(() => decodeLedgerCursor(cursor)).toThrow(InvalidLedgerCursorError);
+    expect(() => decodeLedgerCursor(cursor)).toThrow(DomainError);
+  });
+
+  it('recusa cursor como falha de validação, não como erro interno', () => {
+    let failureCode: string | undefined;
+
+    try {
+      decodeLedgerCursor('nao-e-um-cursor');
+    } catch (error) {
+      failureCode = (error as DomainError).failureCode;
+    }
+
+    expect(failureCode).toBe('VALIDATION_FAILED');
   });
 });

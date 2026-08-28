@@ -28,5 +28,7 @@ const CORRELATION_ID = 'x-correlation-id';
       },
     }),
   ],
+  // Reexportado para quem precisa logar com contexto estruturado, como o filtro de exceções.
+  exports: [LoggerModule],
 })
 export class LoggingModule {}
