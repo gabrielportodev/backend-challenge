@@ -7,7 +7,7 @@ export function inboxToDomain(row: InboxMessageEntity): InboxMessage {
     consumerName: row.consumerName,
     payloadHash: row.payloadHash,
     receivedAt: row.receivedAt,
-    processedAt: row.processedAt,
+    processedAt: row.processedAt ?? undefined,
   });
 }
 

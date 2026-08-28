@@ -4,21 +4,18 @@ import {
   isRetryableDatabaseError,
   StaleWalletVersionError,
 } from '@infrastructure/persistence/database-error';
-import { type ArgumentsHost, Catch, type ExceptionFilter, HttpException } from '@nestjs/common';
-import type { PinoLogger } from 'nestjs-pino';
+import {
+  type ArgumentsHost,
+  Catch,
+  type ExceptionFilter,
+  HttpException,
+  Inject,
+} from '@nestjs/common';
+import { PinoLogger } from 'nestjs-pino';
 import { type HttpFailureCode, statusForFailureCode } from './failure-status';
+import { CORRELATION_ID_HEADER, type HttpResponse } from './http-response';
 
-// O correlationId já é gerado pelo logger HTTP e devolvido no header; aqui só é lido de volta.
-const CORRELATION_ID = 'x-correlation-id';
 const RETRY_AFTER_SECONDS = '1';
-
-/** O mínimo que o filtro usa da resposta, para não depender dos tipos do Express. */
-interface HttpResponse {
-  status(code: number): HttpResponse;
-  json(body: unknown): void;
-  setHeader(name: string, value: string): void;
-  getHeader(name: string): unknown;
-}
 
 export interface ErrorResponseBody {
   failureCode: HttpFailureCode;
@@ -41,14 +38,14 @@ interface Failure {
  */
 @Catch()
 export class DomainExceptionFilter implements ExceptionFilter {
-  constructor(private readonly logger: PinoLogger) {
+  constructor(@Inject(PinoLogger) private readonly logger: PinoLogger) {
     logger.setContext(DomainExceptionFilter.name);
   }
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const response = host.switchToHttp().getResponse<HttpResponse>();
     const failure = this.describe(exception);
-    const header = response.getHeader(CORRELATION_ID);
+    const header = response.getHeader(CORRELATION_ID_HEADER);
     const correlationId = typeof header === 'string' ? header : undefined;
 
     this.log(exception, failure, correlationId);

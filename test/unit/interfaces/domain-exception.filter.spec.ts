@@ -5,7 +5,7 @@ import { StaleWalletVersionError } from '@infrastructure/persistence/database-er
 import {
   DomainExceptionFilter,
   type ErrorResponseBody,
-} from '@interfaces/http/domain-exception.filter';
+} from '@interfaces/http/support/domain-exception.filter';
 import type { ArgumentsHost } from '@nestjs/common';
 import { NotFoundException } from '@nestjs/common';
 import type { PinoLogger } from 'nestjs-pino';

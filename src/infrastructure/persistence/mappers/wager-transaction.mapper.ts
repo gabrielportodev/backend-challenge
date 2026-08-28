@@ -1,6 +1,9 @@
 import { WagerTransaction } from '@domain/wagering/wager-transaction';
 import { WagerTransactionEntity } from '../entities/wager-transaction.entity';
 
+// A coluna nula chega como null, e o domínio trabalha com undefined: a troca acontece aqui, uma vez.
+const orUndefined = <T>(value: T | null | undefined): T | undefined => value ?? undefined;
+
 export function transactionToDomain(row: WagerTransactionEntity): WagerTransaction {
   return WagerTransaction.rehydrate({
     id: row.id,
@@ -14,12 +17,12 @@ export function transactionToDomain(row: WagerTransactionEntity): WagerTransacti
     gameId: row.gameId,
     kind: row.kind,
     money: { amount: row.amount, currency: row.currency },
-    referenceExternalTransactionId: row.referenceExternalTransactionId,
+    referenceExternalTransactionId: orUndefined(row.referenceExternalTransactionId),
     createdAt: row.createdAt,
     status: row.status,
-    referenceTransactionId: row.referenceTransactionId,
-    failureCode: row.failureCode,
-    processedAt: row.processedAt,
+    referenceTransactionId: orUndefined(row.referenceTransactionId),
+    failureCode: orUndefined(row.failureCode),
+    processedAt: orUndefined(row.processedAt),
   });
 }
 

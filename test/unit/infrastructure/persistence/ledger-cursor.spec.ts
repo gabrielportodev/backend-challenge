@@ -4,6 +4,7 @@ import {
   decodeLedgerCursor,
   encodeLedgerCursor,
 } from '@infrastructure/persistence/repositories/ledger-cursor';
+import { expectFailure } from '@test/support/failure';
 
 const createdAt = new Date('2026-01-01T00:00:00.000Z');
 const id = '018f2f00-0000-7000-8000-000000000001';
@@ -34,14 +35,6 @@ describe('cursor do ledger', () => {
   });
 
   it('recusa cursor como falha de validação, não como erro interno', () => {
-    let failureCode: string | undefined;
-
-    try {
-      decodeLedgerCursor('nao-e-um-cursor');
-    } catch (error) {
-      failureCode = (error as DomainError).failureCode;
-    }
-
-    expect(failureCode).toBe('VALIDATION_FAILED');
+    expectFailure(() => decodeLedgerCursor('nao-e-um-cursor'), 'VALIDATION_FAILED');
   });
 });

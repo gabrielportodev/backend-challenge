@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'bun:test';
-import { statusForFailureCode, statusForTransaction } from '@interfaces/http/failure-status';
+import {
+  statusForFailureCode,
+  statusForTransaction,
+} from '@interfaces/http/support/failure-status';
 
 describe('tabela de status HTTP', () => {
   it('separa payload inválido de rejeição de negócio', () => {
