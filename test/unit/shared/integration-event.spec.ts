@@ -129,7 +129,7 @@ describe('WagerTransactionPendingReference', () => {
       kind: 'ROLLBACK',
       referenceExternalTransactionId: 'ext-0',
     });
-    tx.markPendingReference();
+    tx.markPendingReference(occurredAt);
 
     expect(WagerTransactionPendingReference.from(tx, ctx).data.referenceExternalTransactionId).toBe(
       'ext-0',

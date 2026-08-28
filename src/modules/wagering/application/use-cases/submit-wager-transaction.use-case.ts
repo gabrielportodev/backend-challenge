@@ -3,11 +3,7 @@ import {
   type InboxRepository,
 } from '@modules/messaging/domain/inbox.repository.port';
 import { InboxMessage } from '@modules/messaging/domain/inbox-message.entity';
-import {
-  OUTBOX_REPOSITORY,
-  type OutboxRepository,
-} from '@modules/messaging/domain/outbox.repository.port';
-import { OutboxMessage } from '@modules/messaging/domain/outbox-message.entity';
+import { WagerSettlement } from '@modules/wagering/application/wager-settlement';
 import {
   WagerTransaction,
   type WagerTransactionKind,
@@ -16,33 +12,18 @@ import {
   WAGER_TRANSACTION_REPOSITORY,
   type WagerTransactionRepository,
 } from '@modules/wagering/domain/wager-transaction.repository.port';
-import {
-  WagerTransactionPendingReference,
-  WagerTransactionProcessed,
-  WagerTransactionRejected,
-} from '@modules/wagering/domain/wager-transaction-events';
-import {
-  LEDGER_REPOSITORY,
-  type LedgerRepository,
-} from '@modules/wallet/domain/ledger.repository.port';
 import type { Wallet } from '@modules/wallet/domain/wallet.aggregate';
 import {
   WALLET_REPOSITORY,
   type WalletRepository,
 } from '@modules/wallet/domain/wallet.repository.port';
-import { WalletBalanceChanged } from '@modules/wallet/domain/wallet-events';
-import type { WalletLedgerEntry } from '@modules/wallet/domain/wallet-ledger-entry.entity';
 import { Inject, Injectable } from '@nestjs/common';
-import { DomainError, type FailureCode, walletNotFound } from '@shared/domain/errors';
+import { DomainError, walletNotFound } from '@shared/domain/errors';
 import { Money, type MoneyProps } from '@shared/domain/money';
 import { DuplicateTransactionError } from '@shared/kernel/duplicate-transaction.error';
 import { newId } from '@shared/kernel/id';
-import type { IntegrationEvent } from '@shared/kernel/integration-event';
 import { hashPayload } from '@shared/kernel/payload-hash';
 import { TRANSACTION_RUNNER, type TransactionRunner } from '@shared/kernel/transaction-runner.port';
-
-const REFUNDABLE: WagerTransactionKind[] = ['BET'];
-const ROLLBACKABLE: WagerTransactionKind[] = ['BET', 'WIN', 'REFUND'];
 
 /** Os campos de negócio: é sobre eles que o hash é calculado, sem header nem transporte. */
 export interface WagerTransactionPayload {
@@ -62,15 +43,6 @@ export interface InboxSource {
   consumerName: string;
   messageId: string;
 }
-
-/**
- * O destino da referência de um REFUND ou ROLLBACK: seguir em frente (com a referência quando o
- * tipo exige uma), esperar a referência chegar, ou rejeitar por um motivo específico.
- */
-type ReferenceOutcome =
-  | { outcome: 'RESOLVED'; transaction?: WagerTransaction }
-  | { outcome: 'AWAIT' }
-  | { outcome: 'REJECT'; failureCode: FailureCode };
 
 export interface SubmitWagerTransactionCommand {
   idempotencyKey: string;
@@ -99,9 +71,8 @@ export class SubmitWagerTransactionUseCase {
     @Inject(WALLET_REPOSITORY) private readonly wallets: WalletRepository,
     @Inject(WAGER_TRANSACTION_REPOSITORY)
     private readonly transactions: WagerTransactionRepository,
-    @Inject(LEDGER_REPOSITORY) private readonly ledger: LedgerRepository,
-    @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository,
     @Inject(INBOX_REPOSITORY) private readonly inbox: InboxRepository,
+    @Inject(WagerSettlement) private readonly settlement: WagerSettlement,
   ) {}
 
   async execute(command: SubmitWagerTransactionCommand): Promise<SubmitWagerTransactionResult> {
@@ -149,10 +120,10 @@ export class SubmitWagerTransactionUseCase {
       throw walletNotFound(transaction.walletId);
     }
 
-    const entry = await this.settle(transaction, wallet, now);
+    const entry = await this.settlement.settle(transaction, wallet, now);
 
     await this.transactions.update(transaction);
-    await this.publish(transaction, wallet, entry, command.correlationId, now);
+    await this.settlement.publish(transaction, wallet, entry, command.correlationId, now);
 
     if (received) {
       received.markProcessed(now);
@@ -160,184 +131,6 @@ export class SubmitWagerTransactionUseCase {
     }
 
     return { transaction, wallet, idempotentReplay: false };
-  }
-
-  /**
-   * Decide o destino da transação e, quando há movimento, grava ledger e saldo. Devolve o
-   * lançamento gerado, ou nada quando a transação não move saldo.
-   */
-  private async settle(
-    transaction: WagerTransaction,
-    wallet: Wallet,
-    now: Date,
-  ): Promise<WalletLedgerEntry | undefined> {
-    const mismatch = this.walletMismatch(transaction, wallet);
-
-    if (mismatch) {
-      transaction.reject(mismatch);
-      return undefined;
-    }
-
-    const reference = await this.resolveReference(transaction);
-
-    if (reference.outcome === 'REJECT') {
-      transaction.reject(reference.failureCode);
-      return undefined;
-    }
-
-    if (reference.outcome === 'AWAIT') {
-      transaction.markPendingReference();
-      return undefined;
-    }
-
-    // LOSS encerra a rodada sem mover saldo, então não gera lançamento nenhum.
-    if (!transaction.affectsBalance()) {
-      transaction.markProcessed(undefined, now);
-      return undefined;
-    }
-
-    const direction = transaction.ledgerDirectionFor(reference.transaction);
-
-    if (direction === 'DEBIT' && !wallet.hasSufficientFunds(transaction.money)) {
-      // Códigos distintos: aposta sem saldo é resposta esperada, reversão sem saldo é sintoma.
-      transaction.reject(
-        transaction.kind === 'BET' ? 'INSUFFICIENT_FUNDS' : 'REVERSAL_WOULD_OVERDRAW',
-      );
-      return undefined;
-    }
-
-    const expectedVersion = wallet.version;
-    const movement = {
-      transactionId: transaction.id,
-      ledgerEntryId: newId(),
-      money: transaction.money,
-      at: now,
-    };
-
-    const entry = direction === 'DEBIT' ? wallet.debit(movement) : wallet.credit(movement);
-
-    await this.ledger.append(entry);
-    await this.wallets.update(wallet, expectedVersion);
-    transaction.markProcessed(reference.transaction?.id, now);
-
-    return entry;
-  }
-
-  private walletMismatch(transaction: WagerTransaction, wallet: Wallet): FailureCode | undefined {
-    if (wallet.playerId !== transaction.playerId) {
-      return 'WALLET_PLAYER_MISMATCH';
-    }
-
-    if (wallet.currency !== transaction.money.currency) {
-      return 'CURRENCY_MISMATCH';
-    }
-
-    return undefined;
-  }
-
-  /**
-   * Resolve a referência de REFUND e ROLLBACK. Referência que ainda não chegou não é rejeição:
-   * a transação fica esperando e um worker tenta de novo.
-   */
-  private async resolveReference(transaction: WagerTransaction): Promise<ReferenceOutcome> {
-    const externalId = transaction.requiresReference()
-      ? transaction.referenceExternalTransactionId
-      : undefined;
-
-    if (!externalId) {
-      return { outcome: 'RESOLVED' };
-    }
-
-    const reference = await this.transactions.findByExternalId(transaction.providerId, externalId);
-
-    if (!reference) {
-      return { outcome: 'AWAIT' };
-    }
-
-    const failureCode = await this.referenceFailure(transaction, reference);
-
-    if (failureCode) {
-      return { outcome: 'REJECT', failureCode };
-    }
-
-    return { outcome: 'RESOLVED', transaction: reference };
-  }
-
-  /** O que impede esta reversão de acontecer, ou nada quando a referência serve. */
-  private async referenceFailure(
-    transaction: WagerTransaction,
-    reference: WagerTransaction,
-  ): Promise<FailureCode | undefined> {
-    if (reference.status !== 'PROCESSED') {
-      return 'REFERENCE_NOT_PROCESSED';
-    }
-
-    const reversible = transaction.kind === 'REFUND' ? REFUNDABLE : ROLLBACKABLE;
-
-    if (!reversible.includes(reference.kind)) {
-      return 'REFERENCE_KIND_NOT_REVERSIBLE';
-    }
-
-    if (
-      reference.playerId !== transaction.playerId ||
-      reference.walletId !== transaction.walletId ||
-      reference.roundId !== transaction.roundId ||
-      reference.money.currency !== transaction.money.currency
-    ) {
-      return 'REFERENCE_MISMATCH';
-    }
-
-    // Reversão é total: valor diferente do original não é reversão parcial, é erro.
-    if (!reference.money.equals(transaction.money)) {
-      return 'REFERENCE_AMOUNT_MISMATCH';
-    }
-
-    if (await this.transactions.findReversal(reference.id, transaction.kind)) {
-      return 'REFERENCE_ALREADY_REVERSED';
-    }
-
-    return undefined;
-  }
-
-  private async publish(
-    transaction: WagerTransaction,
-    wallet: Wallet,
-    entry: WalletLedgerEntry | undefined,
-    correlationId: string,
-    now: Date,
-  ): Promise<void> {
-    const context = () => ({
-      eventId: newId(),
-      correlationId,
-      causationId: transaction.id,
-      occurredAt: now,
-    });
-
-    const events: IntegrationEvent<unknown>[] = [this.outcomeEvent(transaction, context())];
-
-    // Só existe evento de saldo quando o saldo mudou de fato.
-    if (entry) {
-      events.push(WalletBalanceChanged.from(wallet, entry, context()));
-    }
-
-    for (const event of events) {
-      await this.outbox.enqueue(OutboxMessage.enqueue(event));
-    }
-  }
-
-  private outcomeEvent(
-    transaction: WagerTransaction,
-    context: { eventId: string; correlationId: string; causationId: string; occurredAt: Date },
-  ): IntegrationEvent<unknown> {
-    if (transaction.status === 'REJECTED') {
-      return WagerTransactionRejected.from(transaction, context);
-    }
-
-    if (transaction.status === 'PENDING_REFERENCE') {
-      return WagerTransactionPendingReference.from(transaction, context);
-    }
-
-    return WagerTransactionProcessed.from(transaction, context);
   }
 
   private async receiveFromQueue(

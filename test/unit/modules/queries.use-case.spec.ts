@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import { ReconcileWalletUseCase } from '@modules/reconciliation/application/use-cases/reconcile-wallet.use-case';
 import { GetTransactionUseCase } from '@modules/wagering/application/use-cases/get-transaction.use-case';
 import { SubmitWagerTransactionUseCase } from '@modules/wagering/application/use-cases/submit-wager-transaction.use-case';
+import { WagerSettlement } from '@modules/wagering/application/wager-settlement';
 import { CreateWalletUseCase } from '@modules/wallet/application/use-cases/create-wallet.use-case';
 import { GetLedgerUseCase } from '@modules/wallet/application/use-cases/get-ledger.use-case';
 import { GetWalletUseCase } from '@modules/wallet/application/use-cases/get-wallet.use-case';
@@ -40,9 +41,8 @@ beforeEach(async () => {
     runner,
     wallets,
     transactions,
-    ledger,
-    outbox,
     new InMemoryInboxRepository(),
+    new WagerSettlement(wallets, transactions, ledger, outbox),
   );
 
   getWallet = new GetWalletUseCase(wallets);

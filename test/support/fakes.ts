@@ -58,6 +58,8 @@ function transactionState(transaction: WagerTransaction): WagerTransactionState 
     referenceTransactionId: transaction.referenceTransactionId,
     failureCode: transaction.failureCode,
     processedAt: transaction.processedAt,
+    referenceAttempts: transaction.referenceAttempts,
+    nextReferenceAttemptAt: transaction.nextReferenceAttemptAt,
   };
 }
 
@@ -139,9 +141,10 @@ export class InMemoryWagerTransactionRepository implements WagerTransactionRepos
     );
   }
 
-  async findPendingReference(limit: number): Promise<WagerTransaction[]> {
+  async findPendingReferenceDue(limit: number, now: Date): Promise<WagerTransaction[]> {
     return this.all()
-      .filter((transaction) => transaction.status === 'PENDING_REFERENCE')
+      .filter((transaction) => transaction.isReferenceDue(now))
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
       .slice(0, limit);
   }
 

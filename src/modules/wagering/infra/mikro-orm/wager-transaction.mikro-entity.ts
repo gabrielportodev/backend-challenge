@@ -26,10 +26,12 @@ const STATUSES: WagerTransactionStatus[] = [
   properties: ['providerId', 'externalTransactionId'],
 })
 @Check({ name: 'wager_transactions_amount_positive', expression: 'amount > 0' })
-// Índice usado pelo worker que reprocessa quem está esperando referência.
+// Fila do worker que reprocessa quem está esperando referência: só essas linhas entram no índice.
 @Index({
-  name: 'wager_transactions_status_created_at_index',
-  properties: ['status', 'createdAt'],
+  name: 'wager_transactions_pending_reference_idx',
+  expression: `create index "wager_transactions_pending_reference_idx"
+    on "wager_transactions" ("next_reference_attempt_at")
+    where "status" = 'PENDING_REFERENCE'`,
 })
 // Uma reversão de cada tipo por referência: bloqueia REFUND ou ROLLBACK em dobro.
 @Index({
@@ -94,4 +96,11 @@ export class WagerTransactionEntity {
 
   @Property({ columnType: 'timestamptz', nullable: true })
   processedAt?: Date;
+
+  // Quantas vezes a transação já esperou pela referência, e quando o worker tenta de novo.
+  @Property({ columnType: 'int', default: 0 })
+  referenceAttempts!: number;
+
+  @Property({ columnType: 'timestamptz', nullable: true })
+  nextReferenceAttemptAt?: Date;
 }

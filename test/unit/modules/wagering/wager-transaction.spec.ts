@@ -93,7 +93,7 @@ describe('transicoes', () => {
       kind: 'REFUND',
       referenceExternalTransactionId: 'ext-0',
     });
-    tx.markPendingReference();
+    tx.markPendingReference(createdAt);
 
     expect(tx.status).toBe('PENDING_REFERENCE');
     expect(tx.isTerminal()).toBe(false);
@@ -107,10 +107,52 @@ describe('transicoes', () => {
       kind: 'REFUND',
       referenceExternalTransactionId: 'ext-0',
     });
-    tx.markPendingReference();
-    tx.markPendingReference();
+    tx.markPendingReference(createdAt);
+    tx.markPendingReference(createdAt);
 
     expect(tx.status).toBe('PENDING_REFERENCE');
+  });
+
+  it('agenda a proxima tentativa com backoff crescente a cada espera', () => {
+    const tx = makeTx({ kind: 'REFUND', referenceExternalTransactionId: 'ext-0' });
+
+    tx.markPendingReference(createdAt);
+    expect(tx.referenceAttempts).toBe(1);
+    expect(tx.nextReferenceAttemptAt).toEqual(new Date(createdAt.getTime() + 30_000));
+
+    tx.markPendingReference(createdAt);
+    expect(tx.referenceAttempts).toBe(2);
+    expect(tx.nextReferenceAttemptAt).toEqual(new Date(createdAt.getTime() + 60_000));
+  });
+
+  it('so fica devida quando o horario da proxima tentativa chega', () => {
+    const tx = makeTx({ kind: 'REFUND', referenceExternalTransactionId: 'ext-0' });
+    tx.markPendingReference(createdAt);
+
+    expect(tx.isReferenceDue(createdAt)).toBe(false);
+    expect(tx.isReferenceDue(new Date(createdAt.getTime() + 30_000))).toBe(true);
+  });
+
+  it('nao fica devida quando ja saiu de PENDING_REFERENCE', () => {
+    const tx = makeTx({ kind: 'REFUND', referenceExternalTransactionId: 'ext-0' });
+    tx.markPendingReference(createdAt);
+    tx.markProcessed('tx-0', processedAt);
+
+    expect(tx.isReferenceDue(new Date(createdAt.getTime() + 300_000))).toBe(false);
+  });
+
+  it('esgota a janela de espera na decima tentativa', () => {
+    const tx = makeTx({ kind: 'REFUND', referenceExternalTransactionId: 'ext-0' });
+
+    for (let attempt = 1; attempt < 10; attempt += 1) {
+      tx.markPendingReference(createdAt);
+      expect(tx.hasExhaustedReferenceRetries()).toBe(false);
+    }
+
+    tx.markPendingReference(createdAt);
+    expect(tx.hasExhaustedReferenceRetries()).toBe(true);
+    // O backoff para de crescer no teto de 5 minutos.
+    expect(tx.nextReferenceAttemptAt).toEqual(new Date(createdAt.getTime() + 300_000));
   });
 
   it('rejeita guardando o failureCode', () => {
@@ -139,7 +181,7 @@ describe('transicoes', () => {
 
   const transitions: Array<[string, (tx: WagerTransaction) => void]> = [
     ['markProcessed', (tx) => tx.markProcessed(undefined, processedAt)],
-    ['markPendingReference', (tx) => tx.markPendingReference()],
+    ['markPendingReference', (tx) => tx.markPendingReference(createdAt)],
     ['reject', (tx) => tx.reject('INSUFFICIENT_FUNDS')],
     ['fail', (tx) => tx.fail('VALIDATION_FAILED')],
   ];
@@ -247,6 +289,7 @@ describe('WagerTransaction.rehydrate', () => {
       money: { amount: '80.00', currency: 'BRL' },
       createdAt,
       status: 'PROCESSED',
+      referenceAttempts: 0,
       referenceTransactionId: 'tx-0',
       processedAt,
     });

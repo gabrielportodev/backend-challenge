@@ -17,8 +17,11 @@ export interface WagerTransactionRepository {
     externalTransactionId: string,
   ): Promise<WagerTransaction | null>;
 
-  /** Fila do worker que reprocessa quem chegou antes da referência, da mais antiga para a mais nova. */
-  findPendingReference(limit: number): Promise<WagerTransaction[]>;
+  /**
+   * Fila do worker que reprocessa quem chegou antes da referência, da mais antiga para a mais
+   * nova, já travada para esta instância. Precisa rodar dentro de uma transação.
+   */
+  findPendingReferenceDue(limit: number, now: Date): Promise<WagerTransaction[]>;
 
   /**
    * Reversão do mesmo tipo já aplicada sobre a referência. O índice parcial no banco é a

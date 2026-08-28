@@ -15,6 +15,16 @@ const TERMINAL_STATUSES: WagerTransactionStatus[] = ['PROCESSED', 'REJECTED', 'F
 const KINDS_REQUIRING_REFERENCE: WagerTransactionKind[] = ['REFUND', 'ROLLBACK'];
 const CREDIT_KINDS: WagerTransactionKind[] = ['OPENING', 'WIN', 'REFUND'];
 
+/**
+ * Uma reversão que chega antes da referência espera por ela. São 10 tentativas com backoff de
+ * 30s, 60s, 120s… até o teto de 5 minutos — pouco mais de meia hora de janela. Tempo de sobra
+ * para a fila drenar um atraso, e curto o bastante para o provedor receber uma resposta em vez
+ * de ficar com dinheiro parado em limbo.
+ */
+const MAX_REFERENCE_ATTEMPTS = 10;
+const BASE_REFERENCE_RETRY_MS = 30_000;
+const MAX_REFERENCE_RETRY_MS = 300_000;
+
 export interface CreateWagerTransactionProps {
   id: string;
   providerId: string;
@@ -50,6 +60,8 @@ export interface WagerTransactionState {
   referenceTransactionId?: string;
   failureCode?: FailureCode;
   processedAt?: Date;
+  referenceAttempts: number;
+  nextReferenceAttemptAt?: Date;
 }
 
 export class WagerTransaction {
@@ -71,6 +83,8 @@ export class WagerTransaction {
     private _referenceTransactionId?: string,
     private _failureCode?: FailureCode,
     private _processedAt?: Date,
+    private _referenceAttempts = 0,
+    private _nextReferenceAttemptAt?: Date,
   ) {}
 
   /** Nasce em PENDING e exige referência nos tipos que revertem outra transação. */
@@ -134,6 +148,8 @@ export class WagerTransaction {
       state.referenceTransactionId,
       state.failureCode,
       state.processedAt,
+      state.referenceAttempts,
+      state.nextReferenceAttemptAt,
     );
   }
 
@@ -166,6 +182,14 @@ export class WagerTransaction {
     return this._processedAt;
   }
 
+  get referenceAttempts(): number {
+    return this._referenceAttempts;
+  }
+
+  get nextReferenceAttemptAt(): Date | undefined {
+    return this._nextReferenceAttemptAt;
+  }
+
   markProcessed(referenceTransactionId: string | undefined, at: Date): void {
     this.assertNotTerminal('PROCESSED');
     this._status = 'PROCESSED';
@@ -173,9 +197,18 @@ export class WagerTransaction {
     this._processedAt = at;
   }
 
-  markPendingReference(): void {
+  /** Fica esperando a referência e já agenda quando o worker deve tentar de novo. */
+  markPendingReference(at: Date): void {
     this.assertNotTerminal('PENDING_REFERENCE');
     this._status = 'PENDING_REFERENCE';
+    this._referenceAttempts += 1;
+
+    const delay = Math.min(
+      BASE_REFERENCE_RETRY_MS * 2 ** (this._referenceAttempts - 1),
+      MAX_REFERENCE_RETRY_MS,
+    );
+
+    this._nextReferenceAttemptAt = new Date(at.getTime() + delay);
   }
 
   reject(code: FailureCode): void {
@@ -188,6 +221,20 @@ export class WagerTransaction {
     this.assertNotTerminal('FAILED');
     this._status = 'FAILED';
     this._failureCode = code;
+  }
+
+  /** O worker só pega quem ainda espera referência e cujo horário da próxima tentativa venceu. */
+  isReferenceDue(now: Date): boolean {
+    if (this._status !== 'PENDING_REFERENCE' || !this._nextReferenceAttemptAt) {
+      return false;
+    }
+
+    return this._nextReferenceAttemptAt.getTime() <= now.getTime();
+  }
+
+  /** Esgotada a janela de espera, a transação vira rejeição em vez de esperar para sempre. */
+  hasExhaustedReferenceRetries(): boolean {
+    return this._referenceAttempts >= MAX_REFERENCE_ATTEMPTS;
   }
 
   isTerminal(): boolean {

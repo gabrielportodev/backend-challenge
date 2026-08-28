@@ -1,4 +1,4 @@
-import { EntityManager } from '@mikro-orm/postgresql';
+import { EntityManager, LockMode } from '@mikro-orm/postgresql';
 import type {
   WagerTransaction,
   WagerTransactionKind,
@@ -42,12 +42,16 @@ export class MikroWagerTransactionRepository implements WagerTransactionReposito
     return row ? transactionToDomain(row) : null;
   }
 
-  async findPendingReference(limit: number): Promise<WagerTransaction[]> {
-    const rows = await this.em.find(
-      WagerTransactionEntity,
-      { status: 'PENDING_REFERENCE' },
-      { orderBy: { createdAt: 'asc' }, limit },
-    );
+  /** Mesmo desenho do outbox: `SKIP LOCKED` para dois workers não brigarem pela mesma linha. */
+  async findPendingReferenceDue(limit: number, now: Date): Promise<WagerTransaction[]> {
+    const rows = await this.em
+      .createQueryBuilder(WagerTransactionEntity, 't')
+      .select('*')
+      .where({ status: 'PENDING_REFERENCE', nextReferenceAttemptAt: { $lte: now } })
+      .orderBy({ createdAt: 'asc' })
+      .limit(limit)
+      .setLockMode(LockMode.PESSIMISTIC_PARTIAL_WRITE)
+      .getResultList();
 
     return rows.map(transactionToDomain);
   }
@@ -97,6 +101,8 @@ export class MikroWagerTransactionRepository implements WagerTransactionReposito
         referenceTransactionId: transaction.referenceTransactionId,
         failureCode: transaction.failureCode,
         processedAt: transaction.processedAt,
+        referenceAttempts: transaction.referenceAttempts,
+        nextReferenceAttemptAt: transaction.nextReferenceAttemptAt,
       },
     );
   }

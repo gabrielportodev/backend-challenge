@@ -23,6 +23,8 @@ export function transactionToDomain(row: WagerTransactionEntity): WagerTransacti
     referenceTransactionId: orUndefined(row.referenceTransactionId),
     failureCode: orUndefined(row.failureCode),
     processedAt: orUndefined(row.processedAt),
+    referenceAttempts: row.referenceAttempts,
+    nextReferenceAttemptAt: orUndefined(row.nextReferenceAttemptAt),
   });
 }
 
@@ -47,6 +49,8 @@ export function transactionToEntity(transaction: WagerTransaction): WagerTransac
   row.failureCode = transaction.failureCode;
   row.createdAt = transaction.createdAt;
   row.processedAt = transaction.processedAt;
+  row.referenceAttempts = transaction.referenceAttempts;
+  row.nextReferenceAttemptAt = transaction.nextReferenceAttemptAt;
 
   return row;
 }
