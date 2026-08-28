@@ -88,7 +88,9 @@ export class SubmitWagerTransactionUseCase {
       return await this.transaction.run(() => this.process(command, money, payloadHash));
     } catch (error) {
       if (error instanceof DuplicateTransactionError) {
-        return await this.resolveDuplicate(command, payloadHash, error);
+        // Numa transação nova: a anterior morreu no rollback, e sem uma aberta as leituras
+        // abaixo não teriam contexto de persistência quando a chamada vem da fila.
+        return await this.transaction.run(() => this.resolveDuplicate(command, payloadHash, error));
       }
 
       throw error;

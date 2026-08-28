@@ -11,6 +11,8 @@ const envSchema = z.object({
   AWS_ENDPOINT_URL: z.url().optional(),
   // Fila de entrada, consumida pelo serviço.
   SQS_WAGER_QUEUE_URL: z.url(),
+  // Destino do que não dá para processar: envelope ilegível ou falha que não passa.
+  SQS_WAGER_DLQ_URL: z.url(),
   // Fila de saída, onde o worker do outbox publica os eventos de integração.
   SQS_EVENTS_QUEUE_URL: z.url(),
 });

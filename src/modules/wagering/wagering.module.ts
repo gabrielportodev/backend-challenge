@@ -8,14 +8,15 @@ import { SubmitWagerTransactionUseCase } from './application/use-cases/submit-wa
 import { WagerSettlement } from './application/wager-settlement';
 import { WageringController } from './infra/http/wagering.controller';
 import { WageringPersistenceModule } from './infra/mikro-orm/wagering-persistence.module';
+import { WagerTransactionsConsumer } from './infra/sqs/wager-transactions.consumer';
 
 const useCases = [SubmitWagerTransactionUseCase, GetTransactionUseCase];
 
-// O mesmo use case atende o HTTP e a fila; o consumidor SQS entra por aqui quando existir.
+// O mesmo use case atende as duas entradas: o controller HTTP e o consumidor da fila.
 @Module({
   imports: [PersistenceModule, WageringPersistenceModule, WalletPersistenceModule, MessagingModule],
   controllers: [WageringController],
-  providers: [...useCases, WagerSettlement, PendingReferenceWorker],
+  providers: [...useCases, WagerSettlement, PendingReferenceWorker, WagerTransactionsConsumer],
   exports: useCases,
 })
 export class WageringModule {}
