@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { canonicalJson, hashPayload } from '@shared/payload-hash';
+import { canonicalJson, hashPayload } from '@shared/kernel/payload-hash';
 
 describe('hash do payload', () => {
   it('ignora a ordem das chaves', () => {

@@ -13,9 +13,9 @@
     "lint:fix": "biome check --write .",
     "test": "bun test",
     "migration:create": "bunx mikro-orm migration:create",
-    "migration:up": "bun src/infrastructure/persistence/migrate.ts up",
-    "migration:down": "bun src/infrastructure/persistence/migrate.ts down",
-    "migration:list": "bun src/infrastructure/persistence/migrate.ts list"
+    "migration:up": "bun src/shared/infra/persistence/migrate.ts up",
+    "migration:down": "bun src/shared/infra/persistence/migrate.ts down",
+    "migration:list": "bun src/shared/infra/persistence/migrate.ts list"
   },
   "dependencies": {
     "@aws-sdk/client-sqs": "^3.1119.0",

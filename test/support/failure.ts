@@ -1,5 +1,5 @@
 import { expect } from 'bun:test';
-import { DomainError, type FailureCode } from '@domain/errors';
+import { DomainError, type FailureCode } from '@shared/domain/errors';
 
 /**
  * Confere que a falha veio do domínio e com o código esperado. Assertar o `failureCode` em vez do
