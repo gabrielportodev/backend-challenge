@@ -243,6 +243,20 @@ describe('mapper de outbox', () => {
     expect(volta.nextAttemptAt).toEqual(original.nextAttemptAt);
   });
 
+  // O Postgres devolve null nas colunas vazias, e o domínio só reconhece undefined como pendente.
+  it('trata coluna nula vinda do banco como ausente', () => {
+    const row = outboxToEntity(enfileirada());
+    row.nextAttemptAt = null as unknown as undefined;
+    row.publishedAt = null as unknown as undefined;
+
+    const volta = outboxToDomain(row);
+
+    expect(volta.isPending()).toBe(true);
+    expect(volta.isDue(at)).toBe(true);
+    expect(volta.publishedAt).toBeUndefined();
+    expect(volta.nextAttemptAt).toBeUndefined();
+  });
+
   it('preserva a marca de publicada', () => {
     const original = enfileirada();
     original.markPublished(depois);

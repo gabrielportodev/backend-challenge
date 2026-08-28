@@ -1,6 +1,9 @@
 import { OutboxMessage } from '@modules/messaging/domain/outbox-message.entity';
 import { OutboxMessageEntity } from './outbox-message.mikro-entity';
 
+// A coluna nula chega como null, e o domínio trabalha com undefined: a troca acontece aqui, uma vez.
+const orUndefined = <T>(value: T | null | undefined): T | undefined => value ?? undefined;
+
 export function outboxToDomain(row: OutboxMessageEntity): OutboxMessage {
   return OutboxMessage.rehydrate({
     id: row.id,
@@ -9,8 +12,8 @@ export function outboxToDomain(row: OutboxMessageEntity): OutboxMessage {
     payload: row.payload,
     occurredAt: row.occurredAt,
     attempts: row.attempts,
-    nextAttemptAt: row.nextAttemptAt,
-    publishedAt: row.publishedAt,
+    nextAttemptAt: orUndefined(row.nextAttemptAt),
+    publishedAt: orUndefined(row.publishedAt),
   });
 }
 
