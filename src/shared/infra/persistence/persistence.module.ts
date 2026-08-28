@@ -7,10 +7,13 @@ import { MikroTransactionRunner } from './transaction-runner';
 /**
  * Conexão e transação são de todo mundo, então ficam aqui. Cada módulo registra os próprios
  * repositórios: o que atravessa a aplicação é o `EntityManager`, não a implementação de porta.
+ *
+ * O `forRoot` do MikroORM registra um módulo global, então o `EntityManager` já chega em todo
+ * lugar — reexportá-lo daqui quebraria o boot, porque o módulo importado não é o `MikroOrmModule`.
  */
 @Module({
   imports: [MikroOrmModule.forRoot(ormConfig)],
   providers: [{ provide: TRANSACTION_RUNNER, useClass: MikroTransactionRunner }],
-  exports: [MikroOrmModule, TRANSACTION_RUNNER],
+  exports: [TRANSACTION_RUNNER],
 })
 export class PersistenceModule {}
