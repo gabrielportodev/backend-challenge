@@ -11,6 +11,18 @@ describe('classificação de erro do banco', () => {
     expect(isRetryableDatabaseError({ code: '08006' })).toBe(true);
   });
 
+  it('reconhece o banco inalcançável, que falha no socket antes de ter SQLSTATE', () => {
+    expect(isRetryableDatabaseError({ code: 'ECONNREFUSED' })).toBe(true);
+    expect(isRetryableDatabaseError({ code: 'ETIMEOUT', syscall: 'getaddrinfo' })).toBe(true);
+    expect(isRetryableDatabaseError({ code: 'ECONNRESET' })).toBe(true);
+  });
+
+  it('reconhece o pool esgotado esperando por conexão, que vem sem código', () => {
+    const erro = new Error('Knex: Timeout acquiring a connection. The pool is probably full.');
+
+    expect(isRetryableDatabaseError(erro)).toBe(true);
+  });
+
   it('acha o código dentro do erro embrulhado pelo ORM', () => {
     expect(isRetryableDatabaseError({ previous: { code: '40001' } })).toBe(true);
   });

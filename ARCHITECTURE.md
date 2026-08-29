@@ -186,3 +186,7 @@ por construção, não por corrida contra um `SIGKILL`. Todo teste termina na me
 - **Ordem garantida só dentro de cada wallet.** O `MessageGroupId` é o `walletId`.
 - **Reconciliação sob demanda, uma wallet por vez.** Não há rotina agendada varrendo a base.
 - **Sem teste de carga.** Os números aqui vieram da suíte, não de carga sustentada.
+- **Com o banco fora, as rotas de leitura respondem 500 em vez de 503.** O `DriverException` do
+  MikroORM assume que o erro do driver tem `stack`, e sob o Bun o do pool não tem — o `TypeError`
+  resultante esconde a causa. As escritas escapam porque rodam em transação, onde o erro chega
+  inteiro e é classificado como `TRANSIENT_FAILURE`.

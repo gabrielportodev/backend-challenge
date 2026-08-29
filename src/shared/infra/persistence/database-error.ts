@@ -7,6 +7,29 @@ import {
 const RETRYABLE_CODES = ['40001', '40P01'];
 const CONNECTION_CLASS = '08';
 
+/**
+ * Quando o banco está fora do ar não existe SQLSTATE nenhum: a falha acontece antes, no socket ou
+ * no DNS, e chega como erro do Node. Sem estes códigos ela viraria erro interno, e o provedor
+ * receberia 500 no lugar do 503 que manda reenviar.
+ */
+const NETWORK_CODES = [
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'EHOSTUNREACH',
+  'ENETUNREACH',
+  'ENOTFOUND',
+  'EPIPE',
+  'ETIMEDOUT',
+  'ETIMEOUT',
+  'EAI_AGAIN',
+];
+
+/**
+ * Com o banco inalcançável o pool também estoura sozinho, esperando por uma conexão que não vem.
+ * Esse erro não traz código nenhum, então a mensagem é o único sinal que sobra.
+ */
+const POOL_TIMEOUT = 'Timeout acquiring a connection';
+
 /** O MikroORM embrulha o erro do driver, então o código do Postgres pode estar em `previous`. */
 function errorCode(error: unknown): string | undefined {
   if (typeof error !== 'object' || error === null) {
@@ -20,13 +43,21 @@ function errorCode(error: unknown): string | undefined {
 
 /** Erro que some se tentar de novo. Violação de unique nunca entra aqui: é replay ou conflito. */
 export function isRetryableDatabaseError(error: unknown): boolean {
+  if (error instanceof Error && error.message.includes(POOL_TIMEOUT)) {
+    return true;
+  }
+
   const code = errorCode(error);
 
   if (!code) {
     return false;
   }
 
-  return RETRYABLE_CODES.includes(code) || code.startsWith(CONNECTION_CLASS);
+  return (
+    RETRYABLE_CODES.includes(code) ||
+    NETWORK_CODES.includes(code) ||
+    code.startsWith(CONNECTION_CLASS)
+  );
 }
 
 /** Disputa pela mesma wallet: falha de serialização ou deadlock, o que a métrica acompanha. */
