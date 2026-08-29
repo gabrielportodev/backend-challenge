@@ -179,7 +179,7 @@ export class SubmitWagerTransactionUseCase {
 
   /**
    * A escrita colidiu com algo já commitado. Mesma chave e mesmo payload é replay; mesma chave
-   * com payload diferente é conflito, porque devolver "sucesso" afirmaria algo que não aconteceu.
+   * com payload diferente é conflito, porque a resposta original não corresponde a este payload.
    */
   private async resolveDuplicate(
     command: SubmitWagerTransactionCommand,

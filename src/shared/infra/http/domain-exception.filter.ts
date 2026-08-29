@@ -99,7 +99,7 @@ export class DomainExceptionFilter implements ExceptionFilter {
       };
     }
 
-    // Erro desconhecido não descreve a si mesmo para fora: o detalhe fica no log.
+    // Erro desconhecido não é detalhado na resposta: o detalhe fica só no log.
     return this.failure('INTERNAL_ERROR', 'Erro interno');
   }
 

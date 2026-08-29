@@ -6,7 +6,7 @@ import { idempotencyKeySchema, submitTransactionSchema } from '../http/wagering.
  * propósito: as duas entradas chamam o mesmo use case, então não podem aceitar coisas diferentes.
  *
  * `messageId` é a identidade da mensagem para o inbox. Não é o id que a fila gera: aquele muda a
- * cada republicação do produtor, e é justamente a republicação que precisa ser reconhecida.
+ * cada republicação do produtor, e é a republicação que precisa ser reconhecida como repetida.
  */
 export const wagerMessageSchema = z.object({
   messageId: z.string().min(1).max(255),

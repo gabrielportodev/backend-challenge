@@ -28,8 +28,8 @@ const ERROR_DELAY_MS = 5_000;
  * a seleção é feita com `FOR UPDATE SKIP LOCKED`, então cada publisher pega um lote diferente.
  *
  * A publicação acontece com a transação aberta e as linhas travadas. Se o processo morrer entre
- * o envio e o commit, o evento é publicado de novo mais tarde — duplicar é seguro (o `eventId`
- * é a chave de deduplicação da fila e o consumidor é idempotente), perder não seria.
+ * o envio e o commit, o evento é publicado de novo mais tarde. Publicar duas vezes é seguro: o
+ * `eventId` é a chave de deduplicação da fila e o consumidor é idempotente.
  */
 @Injectable()
 export class OutboxPublisherWorker implements OnApplicationBootstrap, OnApplicationShutdown {

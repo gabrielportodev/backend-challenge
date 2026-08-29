@@ -90,11 +90,13 @@ describe('fluxo SQS ponta a ponta', () => {
       return visible + inFlight === 0;
     });
 
-    // Filtra pela wallet do teste: mensagem esquecida de outra rodada não conta.
-    const eventos = await collectMessages(QUEUES.events, 3);
-    const tipos = eventos
-      .filter((evento) => evento.body.includes(walletId))
-      .map((evento) => (JSON.parse(evento.body) as { eventType: string }).eventType);
+    // Conta só a wallet do teste: mensagem esquecida de outra rodada não ocupa vaga.
+    const eventos = await collectMessages(QUEUES.events, 3, 15_000, (evento) =>
+      evento.body.includes(walletId),
+    );
+    const tipos = eventos.map(
+      (evento) => (JSON.parse(evento.body) as { eventType: string }).eventType,
+    );
 
     expect(tipos).toContain('WagerTransactionProcessed');
     expect(tipos.filter((tipo) => tipo === 'WalletBalanceChanged')).toHaveLength(2);

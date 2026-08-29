@@ -2,9 +2,9 @@ import { HttpStatus } from '@nestjs/common';
 import type { FailureCode } from '@shared/domain/errors';
 
 /**
- * A borda precisa nomear o que o domínio não nomeia: colisão de escrita sem dono identificado,
- * falha transitória, recusa do próprio framework e erro nosso. Fora esses quatro, o código que
- * chega ao cliente é o mesmo `failureCode` que viaja no evento e no banco.
+ * A borda precisa nomear quatro casos que o domínio não nomeia: colisão de escrita sem dono
+ * identificado, falha transitória, recusa do próprio framework e erro interno. Fora esses, o
+ * código que chega ao cliente é o mesmo `failureCode` que viaja no evento e no banco.
  */
 export type HttpFailureCode =
   | FailureCode
@@ -14,9 +14,9 @@ export type HttpFailureCode =
   | 'INTERNAL_ERROR';
 
 /**
- * Um status por código, num lugar só. A separação que importa: 400 é payload que não dá para
- * ler, 409 é conflito de identidade, 422 é pedido entendido e recusado por regra de negócio, e
- * 503 é falha que passa — só nesse último o provedor pode reenviar o mesmo pedido.
+ * Um status por código, num lugar só. 400 é payload que não dá para ler, 409 é conflito de
+ * identidade, 422 é pedido entendido e recusado por regra de negócio, e 503 é falha transitória.
+ * Só no 503 o provedor pode reenviar o mesmo pedido.
  */
 const STATUS_BY_FAILURE_CODE: Record<HttpFailureCode, HttpStatus> = {
   VALIDATION_FAILED: HttpStatus.BAD_REQUEST,
@@ -46,7 +46,7 @@ const STATUS_BY_FAILURE_CODE: Record<HttpFailureCode, HttpStatus> = {
 
   TRANSIENT_FAILURE: HttpStatus.SERVICE_UNAVAILABLE,
 
-  // Invariante nossa quebrada: não há nada que o cliente possa corrigir no pedido.
+  // Invariante interna quebrada: não há nada que o cliente possa corrigir no pedido.
   LEDGER_ENTRY_UNBALANCED: HttpStatus.INTERNAL_SERVER_ERROR,
   INTERNAL_ERROR: HttpStatus.INTERNAL_SERVER_ERROR,
 };

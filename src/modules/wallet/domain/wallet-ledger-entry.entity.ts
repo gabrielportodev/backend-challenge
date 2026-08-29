@@ -38,7 +38,7 @@ export class WalletLedgerEntry {
     public readonly createdAt: Date,
   ) {}
 
-  /** Valida a conta do lançamento: um lançamento torto nunca chega a existir. */
+  /** Valida a conta do lançamento, para um lançamento inconsistente nunca chegar a existir. */
   static create(props: CreateLedgerEntryProps): WalletLedgerEntry {
     if (!props.money.isPositive()) {
       throw new DomainError(

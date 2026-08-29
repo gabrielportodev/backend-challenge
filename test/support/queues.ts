@@ -89,11 +89,16 @@ export async function drainAllQueues(): Promise<void> {
   }
 }
 
-/** Espera até `count` mensagens aparecerem, ou devolve o que juntou até o prazo acabar. */
+/**
+ * Espera até `count` mensagens aparecerem, ou devolve o que juntou até o prazo acabar. O filtro
+ * conta apenas as mensagens que interessam ao teste: sem ele, uma mensagem de outra wallet ocupa
+ * uma das vagas e o teste recebe menos do que pediu.
+ */
 export async function collectMessages(
   url: string,
   count: number,
   timeoutMs = 15_000,
+  matches: (message: QueuedMessage) => boolean = () => true,
 ): Promise<QueuedMessage[]> {
   const collected: QueuedMessage[] = [];
   const deadline = Date.now() + timeoutMs;
@@ -103,7 +108,10 @@ export async function collectMessages(
 
     for (const message of messages) {
       await deleteFrom(url, message);
-      collected.push(message);
+
+      if (matches(message)) {
+        collected.push(message);
+      }
     }
   }
 

@@ -19,7 +19,7 @@ import { type WagerMessage, wagerMessageSchema } from './wager-message.dto';
 /** Identidade do consumidor no inbox: outro consumidor da mesma fila teria dedup próprio. */
 const CONSUMER_NAME = 'wager-transactions';
 const BATCH_SIZE = 10;
-/** O mesmo `maxReceiveCount` da redrive policy — a fila desistiria aqui, e nós desistimos junto. */
+/** O mesmo `maxReceiveCount` da redrive policy: é onde a própria fila mandaria para a DLQ. */
 const MAX_RECEIVES = 5;
 const BASE_RETRY_SECONDS = 5;
 const MAX_RETRY_SECONDS = 300;
@@ -62,8 +62,8 @@ export class WagerTransactionsConsumer implements OnApplicationBootstrap, OnAppl
 
   /**
    * Para de ler e espera o lote em andamento terminar. Cada mensagem já tratada foi apagada da
-   * fila, e as que não chegaram a ser lidas continuam invisíveis por pouco tempo — nada se perde
-   * e nada é processado pela metade.
+   * fila, e as que não chegaram a ser lidas continuam invisíveis por pouco tempo, então nenhuma
+   * mensagem se perde nem fica processada pela metade.
    */
   async onApplicationShutdown(): Promise<void> {
     this.running = false;

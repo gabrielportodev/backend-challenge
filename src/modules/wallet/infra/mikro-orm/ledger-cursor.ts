@@ -1,6 +1,6 @@
 import { DomainError } from '@shared/domain/errors';
 
-// O cursor vem da query string, então cursor quebrado é entrada inválida do cliente, não erro nosso.
+// O cursor vem da query string, então cursor quebrado é entrada inválida, e não erro interno.
 function invalidCursor(cursor: string): DomainError {
   return new DomainError('VALIDATION_FAILED', `Cursor inválido: ${cursor}`, { cursor });
 }

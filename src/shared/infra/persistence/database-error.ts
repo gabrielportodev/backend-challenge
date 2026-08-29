@@ -8,9 +8,9 @@ const RETRYABLE_CODES = ['40001', '40P01'];
 const CONNECTION_CLASS = '08';
 
 /**
- * Quando o banco está fora do ar não existe SQLSTATE nenhum: a falha acontece antes, no socket ou
- * no DNS, e chega como erro do Node. Sem estes códigos ela viraria erro interno, e o provedor
- * receberia 500 no lugar do 503 que manda reenviar.
+ * Quando o banco está fora do ar não existe SQLSTATE: a falha acontece antes, no socket ou no DNS,
+ * e chega como erro do Node. Sem estes códigos ela seria classificada como erro interno, e o
+ * provedor receberia 500 em vez do 503 que indica reenvio.
  */
 const NETWORK_CODES = [
   'ECONNREFUSED',
@@ -25,8 +25,8 @@ const NETWORK_CODES = [
 ];
 
 /**
- * Com o banco inalcançável o pool também estoura sozinho, esperando por uma conexão que não vem.
- * Esse erro não traz código nenhum, então a mensagem é o único sinal que sobra.
+ * Com o banco inalcançável o pool também estoura o próprio tempo de espera por uma conexão. Esse
+ * erro não traz código algum, então a mensagem é o único sinal disponível.
  */
 const POOL_TIMEOUT = 'Timeout acquiring a connection';
 

@@ -13,7 +13,7 @@ const FALHA = 'outbox indisponível';
 
 /**
  * Falha no último passo da transação financeira. O evento é a última escrita antes do commit,
- * então quebrar aqui é a forma mais dura de perguntar se as cinco escritas são mesmo uma só.
+ * então quebrar aqui verifica se as cinco escritas realmente commitam juntas.
  */
 const outboxQuebrado: OutboxRepository = {
   async enqueue() {

@@ -1,4 +1,4 @@
-/** O mínimo que usamos da resposta HTTP, para não depender dos tipos do Express. */
+/** O mínimo necessário da resposta HTTP, para não depender dos tipos do Express. */
 export interface HttpResponse {
   status(code: number): HttpResponse;
   json(body: unknown): void;

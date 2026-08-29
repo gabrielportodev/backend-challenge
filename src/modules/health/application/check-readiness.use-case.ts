@@ -14,7 +14,7 @@ export interface ReadinessResult {
   probes: ProbeResult[];
 }
 
-/** Sem prazo, uma dependência pendurada pendura junto a resposta que deveria denunciá-la. */
+/** Sem prazo, uma dependência travada travaria junto a resposta do readiness. */
 function withTimeout(work: Promise<void>, ms: number): Promise<void> {
   let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -26,8 +26,8 @@ function withTimeout(work: Promise<void>, ms: number): Promise<void> {
 }
 
 /**
- * Readiness é a pergunta "posso receber tráfego agora?". Todas as probes são consultadas mesmo
- * quando a primeira falha: quem lê precisa saber o que está fora, não só que algo está.
+ * Responde se a instância pode receber tráfego. Todas as probes são consultadas mesmo quando a
+ * primeira falha, para a resposta dizer qual dependência está fora, e não apenas que alguma está.
  */
 @Injectable()
 export class CheckReadinessUseCase {

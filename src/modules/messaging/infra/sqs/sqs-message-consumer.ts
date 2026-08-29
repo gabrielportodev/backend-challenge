@@ -13,8 +13,8 @@ import type {
 import { Injectable, type OnModuleDestroy } from '@nestjs/common';
 
 /**
- * Long polling: a leitura só volta antes disso se chegar mensagem. Também é o que limita quanto
- * tempo o shutdown espera, então não adianta aumentar muito.
+ * Long polling: a leitura só volta antes disso se chegar mensagem. Também define quanto tempo o
+ * shutdown espera, então valores altos atrasam o encerramento.
  */
 const WAIT_TIME_SECONDS = 5;
 

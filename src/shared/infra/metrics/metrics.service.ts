@@ -76,7 +76,7 @@ export class MetricsService {
   });
 
   constructor() {
-    // Memória, event loop e CPU do processo: é o que diz se a lentidão é nossa ou do ambiente.
+    // Memória, event loop e CPU do processo: separa lentidão da aplicação de lentidão do ambiente.
     collectDefaultMetrics({ register: this.registry });
   }
 

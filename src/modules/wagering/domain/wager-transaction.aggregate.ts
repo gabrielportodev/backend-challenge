@@ -16,10 +16,9 @@ const KINDS_REQUIRING_REFERENCE: WagerTransactionKind[] = ['REFUND', 'ROLLBACK']
 const CREDIT_KINDS: WagerTransactionKind[] = ['OPENING', 'WIN', 'REFUND'];
 
 /**
- * Uma reversão que chega antes da referência espera por ela. São 10 tentativas com backoff de
- * 30s, 60s, 120s… até o teto de 5 minutos — pouco mais de meia hora de janela. Tempo de sobra
- * para a fila drenar um atraso, e curto o bastante para o provedor receber uma resposta em vez
- * de ficar com dinheiro parado em limbo.
+ * Uma reversão que chega antes da referência espera por ela: 10 tentativas com backoff de 30s,
+ * 60s, 120s… até o teto de 5 minutos, o que dá pouco mais de meia hora de janela. É tempo
+ * suficiente para a fila drenar um atraso sem deixar o provedor sem resposta.
  */
 const MAX_REFERENCE_ATTEMPTS = 10;
 const BASE_REFERENCE_RETRY_MS = 30_000;

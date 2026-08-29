@@ -3,7 +3,7 @@ import type { FailureCode } from './failure-code';
 /**
  * Toda falha de domínio, de validação de entrada a invariante quebrada. Quem diferencia os casos
  * é o `failureCode`: é ele que vai para a resposta da API, para o evento e para a tabela de
- * status HTTP. Subclasse por motivo só repetiria o que o código já diz.
+ * status HTTP. Uma subclasse por motivo só repetiria a informação que o código já carrega.
  */
 export class DomainError extends Error {
   constructor(

@@ -10,7 +10,6 @@ export interface ReadinessResponse {
   checks: ProbeResult[];
 }
 
-// Sem autenticação: é o orquestrador que consulta, e ele não tem credencial nossa.
 @Controller('health')
 export class HealthController {
   constructor(

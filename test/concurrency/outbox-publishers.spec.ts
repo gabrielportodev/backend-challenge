@@ -67,8 +67,9 @@ describe('publishers concorrentes sobre o mesmo outbox', () => {
       return restantes.length === 0;
     });
 
-    const mensagens = await collectMessages(QUEUES.events, EVENTOS);
-    const daWallet = mensagens.filter((mensagem) => mensagem.body.includes(walletId));
+    const daWallet = await collectMessages(QUEUES.events, EVENTOS, 15_000, (mensagem) =>
+      mensagem.body.includes(walletId),
+    );
     const ids = daWallet.map(
       (mensagem) => (JSON.parse(mensagem.body) as { eventId: string }).eventId,
     );

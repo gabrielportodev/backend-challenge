@@ -3,8 +3,8 @@ import type { HealthProbe } from '@modules/health/domain/health-probe.port';
 import { Inject, Injectable } from '@nestjs/common';
 
 /**
- * Consulta trivial de propósito: o que precisa ser provado é que a conexão responde, não o
- * schema. Um pool que só existe, sem viagem até o banco, não diz nada.
+ * A consulta é trivial porque o que precisa ser verificado é se a conexão responde, e não o
+ * schema. Checar apenas o pool não prova que o banco está acessível.
  */
 @Injectable()
 export class DatabaseProbe implements HealthProbe {

@@ -73,8 +73,8 @@ async function criaWallets(cliente: ApiClient, execucao: string): Promise<Alvo[]
 }
 
 /**
- * Carga fechada: cada trabalhador espera a resposta antes de disparar de novo. É a forma honesta
- * de medir latência sem inflar a fila do servidor com pedidos que ninguém está esperando.
+ * Carga fechada: cada trabalhador espera a resposta antes de disparar de novo. Sem isso os
+ * pedidos se acumulariam no servidor e a latência medida seria a da fila, não a do processamento.
  */
 async function trabalhador(
   cliente: ApiClient,
@@ -198,8 +198,8 @@ async function main(): Promise<void> {
 
 ## Metodologia
 Carga fechada: cada trabalhador envia uma BET de ${VALOR_DA_APOSTA} e só dispara a próxima depois
-da resposta. Chave de idempotência única por requisição, então nada aqui é replay. Poucas wallets
-para muitos trabalhadores, de propósito: é a disputa pela mesma linha que este teste quer medir.
+da resposta. Chave de idempotência única por requisição, então nenhuma delas é replay. São poucas
+wallets para muitos trabalhadores porque o que se mede aqui é a disputa pela mesma linha.
 
 ## Resultado
 - duração: ${decorridoSegundos.toFixed(1)}s

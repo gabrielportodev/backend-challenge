@@ -45,9 +45,9 @@ async function waitUntilReady(url: string, process: Subprocess): Promise<void> {
 }
 
 /**
- * Sobe instâncias de verdade, em processos separados, cada uma na própria porta. É o que torna os
- * testes de concorrência honestos: o paralelismo é entre processos, e a única coisa compartilhada
- * entre eles é o Postgres — exatamente como em produção.
+ * Sobe instâncias de verdade, em processos separados, cada uma na própria porta. Assim o
+ * paralelismo dos testes de concorrência é entre processos, e a única coisa compartilhada entre
+ * eles é o Postgres, como em produção.
  */
 export async function startInstances(count: number, basePort = 3200): Promise<AppInstances> {
   const started: AppInstance[] = [];

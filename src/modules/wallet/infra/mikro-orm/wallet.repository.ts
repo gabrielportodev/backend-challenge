@@ -24,13 +24,13 @@ export class MikroWalletRepository implements WalletRepository {
    * Trava a linha da wallet para esta transação. O lock é `FOR NO KEY UPDATE`, e não `FOR UPDATE`,
    * porque o que precisa ser excluído é outra escrita de saldo — a chave da linha não muda.
    *
-   * A diferença não é cosmética: o insert de `wager_transactions` toma `FOR KEY SHARE` na wallet
-   * por causa da FK, e `FOR UPDATE` conflita com esse lock. Como o insert vem antes do lock, duas
-   * submissões concorrentes na mesma wallet fechavam um ciclo e o Postgres matava uma por deadlock.
-   * `FOR NO KEY UPDATE` convive com o `FOR KEY SHARE` e continua serializando os dois saldos.
+   * O insert de `wager_transactions` toma `FOR KEY SHARE` na wallet por causa da FK, e
+   * `FOR UPDATE` conflita com esse lock. Como o insert vem antes, duas submissões concorrentes na
+   * mesma wallet fechariam um ciclo e o Postgres mataria uma por deadlock. `FOR NO KEY UPDATE`
+   * convive com o `FOR KEY SHARE` e continua serializando as escritas de saldo.
    */
   async findByIdForUpdate(id: string): Promise<Wallet | null> {
-    // Fora de uma transação o lock seria liberado na mesma hora, o que é pior que não travar.
+    // Fora de uma transação o lock seria liberado logo em seguida, sem proteger nada.
     if (!this.em.getTransactionContext()) {
       throw new Error('findByIdForUpdate precisa rodar dentro de TransactionRunner.run');
     }

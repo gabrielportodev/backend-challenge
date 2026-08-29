@@ -107,12 +107,12 @@ export class PendingReferenceWorker implements OnApplicationBootstrap, OnApplica
     }
 
     await this.transactions.update(transaction);
-    // O evento só sai quando a transação chega a um estado terminal: reagendamento não é notícia.
+    // O evento só sai quando a transação chega a um estado terminal; reagendar não gera evento.
     await this.settlement.publish(transaction, wallet, entry, transaction.id, now);
 
     this.logger.log({
       msg: 'Transação saiu de PENDING_REFERENCE',
-      // O mesmo correlationId que o evento publicado carrega: o log e o evento se encontram.
+      // O mesmo correlationId do evento publicado, para o log e o evento serem correlacionáveis.
       correlationId: transaction.id,
       transactionId: transaction.id,
       walletId: transaction.walletId,
