@@ -52,12 +52,11 @@ debitam e o saldo vai a `-60.00`. Antes de mexer no saldo, o use case trava a li
 `SELECT ... FOR NO KEY UPDATE`; a segunda aposta espera o commit da primeira, lê `20.00` e é
 rejeitada. O lock é por linha, então wallets diferentes seguem em paralelo.
 
-A força do lock só apareceu com os testes contra o Postgres de verdade. O insert da transação toma
-`FOR KEY SHARE` na wallet por causa da FK e acontece antes do lock; `FOR UPDATE` conflita com ele, e
-duas submissões na mesma wallet fechavam um ciclo até o Postgres matar uma por deadlock.
-`FOR NO KEY UPDATE` é o lock que a operação realmente pede — o saldo muda, a chave não — e convive
-com o `FOR KEY SHARE`. Com 20 apostas em paralelo, o tempo caiu de 57 segundos com 19 erros para
-297ms sem nenhum.
+A força do lock só apareceu contra o Postgres de verdade. O insert da transação toma `FOR KEY SHARE`
+na wallet por causa da FK e acontece antes do lock; `FOR UPDATE` conflita com ele, e duas submissões
+na mesma wallet fechavam um ciclo até o Postgres matar uma por deadlock. `FOR NO KEY UPDATE` é o que
+a operação realmente pede — o saldo muda, a chave não — e convive com o `FOR KEY SHARE`: as mesmas 20
+apostas caíram de 57 segundos com 19 erros para 297ms sem nenhum.
 
 A `version` da wallet entra no `WHERE` do `UPDATE` como reforço, e a última palavra é do
 `CHECK (balance_amount >= 0)`. O retry cobre só `40001`, `40P01` e falha de conexão, no máximo 3
@@ -128,9 +127,9 @@ mesmo schema Zod — duas entradas que chamam o mesmo use case não podem aceita
 Um `REFUND` ou `ROLLBACK` que chega antes da transação que referencia não é erro: a fila é
 at-least-once e não garante ordem. A transação é salva como `PENDING_REFERENCE`, a API responde `202`
 e um worker tenta de novo — **10 tentativas, backoff de 30s dobrando até 5 minutos**, pouco mais de
-meia hora. Numa fila saudável a referência atrasada é questão de segundos, então meia hora cobre uma
-drenagem lenta; e dinheiro em limbo é pior que resposta negativa, porque o provedor precisa de um
-veredito para decidir se reenvia. Esgotada a janela, vira `REJECTED` com `REFERENCE_NOT_FOUND`.
+meia hora. Isso cobre com folga uma drenagem lenta, e dinheiro em limbo é pior que resposta negativa:
+o provedor precisa de um veredito para decidir se reenvia. Esgotada a janela, vira `REJECTED` com
+`REFERENCE_NOT_FOUND`.
 
 ## Erros e status HTTP
 
@@ -157,10 +156,9 @@ o status vem do estado final: `PROCESSED` 200, `PENDING`/`PENDING_REFERENCE` 202
 
 Logs em JSON pelo Pino, com os de negócio como objetos e não frases: `correlationId`,
 `transactionId`, `walletId` e `status` são campos, porque o que se faz com eles é filtrar. O
-`correlationId` é herdado do header quando o provedor manda, gerado quando não, e segue até o evento
-publicado.
+`correlationId` é herdado do header quando o provedor manda e segue até o evento publicado.
 
-`GET /metrics` expõe, no formato do Prometheus, o volume por tipo e status, duplicatas, retries,
+`GET /metrics` expõe, no formato do Prometheus, volume por tipo e status, duplicatas, retries,
 mensagens em DLQ, conflitos de lock, latência da submissão e o lag do outbox. A transação só é
 contada depois do commit: contar dentro faria o rollback deixar para trás uma transação que a
 métrica jura ter concluído.
@@ -172,11 +170,25 @@ fila e responde `503` nomeando quem falhou.
 ## Testes
 
 `bun test` roda a unidade sem container. `test:integration` e `test:concurrency` rodam contra
-Postgres e LocalStack de verdade, num Compose separado em portas próprias para não encostar no
-ambiente de desenvolvimento. Os de concorrência sobem instâncias em processos separados, com o
-Postgres como único recurso compartilhado, e o crash com commit feito e `ack` pendente é reproduzido
-por construção, não por corrida contra um `SIGKILL`. Todo teste termina na mesma invariante:
-`wallet.balance` igual ao saldo reconstruído pelo ledger.
+Postgres e LocalStack de verdade, num Compose separado em portas próprias. Os de concorrência sobem
+instâncias em processos separados, com o Postgres como único recurso compartilhado, e o crash com
+commit feito e `ack` pendente é reproduzido por construção, não por corrida contra um `SIGKILL`.
+Todo teste termina na mesma invariante: `wallet.balance` igual ao saldo reconstruído pelo ledger.
+
+## Teste de carga
+
+`bun run test:load` aponta para uma aplicação já no ar: 50 trabalhadores disputando 5 carteiras por
+20s, cada um esperando a resposta antes de disparar de novo, com chave de idempotência única — nada
+ali é replay. Poucas carteiras para muitos trabalhadores de propósito, porque o que interessa medir
+é a disputa pela mesma linha.
+
+Numa instância, em máquina de desenvolvimento com tudo no mesmo host: **175 req/s**, p50 280ms, p95
+358ms, p99 382ms, **0% de erro**, **nenhum conflito de lock**, outbox drenando em 2,7s e nenhuma
+carteira com saldo divergente do ledger. Serve para comparar mudanças nossas, não para prever
+produção.
+
+Nenhum aborto e nenhuma divergência: o lock pessimista serializa a disputa sem gerar conflito, e a
+latência sobe porque as requisições esperam na fila do lock — que é o comportamento desejado.
 
 ## Limitações conhecidas
 
@@ -185,8 +197,6 @@ por construção, não por corrida contra um `SIGKILL`. Todo teste termina na me
 - **O worker do outbox faz polling.** `LISTEN/NOTIFY` reduziria a latência de publicação.
 - **Ordem garantida só dentro de cada wallet.** O `MessageGroupId` é o `walletId`.
 - **Reconciliação sob demanda, uma wallet por vez.** Não há rotina agendada varrendo a base.
-- **Sem teste de carga.** Os números aqui vieram da suíte, não de carga sustentada.
 - **Com o banco fora, as rotas de leitura respondem 500 em vez de 503.** O `DriverException` do
-  MikroORM assume que o erro do driver tem `stack`, e sob o Bun o do pool não tem — o `TypeError`
-  resultante esconde a causa. As escritas escapam porque rodam em transação, onde o erro chega
-  inteiro e é classificado como `TRANSIENT_FAILURE`.
+  MikroORM assume que o erro do driver tem `stack`, e o do pool sob o Bun não tem. As escritas
+  escapam porque rodam em transação, onde o erro chega inteiro.

@@ -77,6 +77,7 @@ O `.env.example` já aponta para o Postgres na `5433` e para o LocalStack na `45
 | `bun test` | Suíte de unidade (não precisa de container) |
 | `bun run test:integration` | Integração contra Postgres e LocalStack reais |
 | `bun run test:concurrency` | Concorrência com instâncias em processos separados |
+| `bun run test:load` | Carga contra uma aplicação já no ar (ver abaixo) |
 | `bun run test:infra:up` | Sobe os containers dedicados aos testes |
 | `bun run test:infra:down` | Derruba os containers de teste e apaga o volume |
 | `bun run migration:up` | Aplica as migrations pendentes |
@@ -96,6 +97,18 @@ bun run test:integration
 bun run test:concurrency
 bun run test:infra:down
 ```
+
+O teste de carga é diferente: ele não sobe nada, aponta para uma aplicação que já está rodando —
+por padrão a do Compose, em `http://localhost:3000`. Para distribuir a carga entre as três
+instâncias:
+
+```bash
+docker compose up -d --scale app=3
+LOAD_URLS=http://localhost:3000,http://localhost:3001,http://localhost:3002 bun run test:load
+```
+
+`LOAD_CONCURRENCY`, `LOAD_DURATION` e `LOAD_WALLETS` ajustam trabalhadores simultâneos, duração em
+segundos e quantas carteiras são disputadas.
 
 ## Endpoints
 

@@ -14,6 +14,7 @@
     "test": "bun test",
     "test:integration": "bun test --env-file=.env.test --timeout 60000 --path-ignore-patterns=node_modules test/integration",
     "test:concurrency": "bun test --env-file=.env.test --timeout 120000 --path-ignore-patterns=node_modules test/concurrency",
+    "test:load": "bun test/load/run.ts",
     "test:infra:up": "docker compose -f docker-compose.test.yml up -d --wait",
     "test:infra:down": "docker compose -f docker-compose.test.yml down -v",
     "migration:create": "bunx mikro-orm migration:create",
