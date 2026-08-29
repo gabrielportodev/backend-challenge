@@ -187,13 +187,26 @@ Numa instância, em máquina de desenvolvimento com tudo no mesmo host: **175 re
 carteira com saldo divergente do ledger. Serve para comparar mudanças nossas, não para prever
 produção.
 
+Com três instâncias contra o mesmo banco e a mesma fila, a mesma carga deu **230 req/s**, p50 178ms,
+p95 469ms, p99 678ms, 4665 requisições, **0% de erro** e nenhuma divergência. O ganho é modesto porque
+o gargalo é a fila do lock nas cinco carteiras disputadas, não a aplicação — mais instâncias não
+compram vazão sobre a mesma linha.
+
 Nenhum aborto e nenhuma divergência: o lock pessimista serializa a disputa sem gerar conflito, e a
 latência sobe porque as requisições esperam na fila do lock — que é o comportamento desejado.
+
+O que a carga expõe é o outbox: com três instâncias publicando, o lag chegou a **32s** durante o pico
+e levou 16,6s para zerar depois que a carga parou. O worker varre em intervalo fixo e publica em
+lotes, então o backlog cresce enquanto a escrita for mais rápida que a publicação. Nada se perde — o
+evento está commitado —, mas o consumidor vê o resultado com atraso sob carga.
 
 ## Limitações conhecidas
 
 - **Uma moeda só.** O modelo suporta várias, mas só `BRL` foi exercitado.
 - **Sem autenticação.** O `providerId` é auto-declarado.
+- **Não há passo de build.** A imagem roda `bun src/main.ts` direto do fonte. O `bun build` até
+  empacota, mas o bundle quebra a injeção do `PinoLogger` do Nest, e nada no projeto consome
+  `dist/`.
 - **O worker do outbox faz polling.** `LISTEN/NOTIFY` reduziria a latência de publicação.
 - **Ordem garantida só dentro de cada wallet.** O `MessageGroupId` é o `walletId`.
 - **Reconciliação sob demanda, uma wallet por vez.** Não há rotina agendada varrendo a base.

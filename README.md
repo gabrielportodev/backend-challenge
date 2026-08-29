@@ -70,7 +70,6 @@ O `.env.example` já aponta para o Postgres na `5433` e para o LocalStack na `45
 | --- | --- |
 | `bun run dev` | Sobe a aplicação com hot reload |
 | `bun run start` | Sobe a aplicação sem watch |
-| `bun run build` | Compila para `dist/` |
 | `bun run typecheck` | `tsc --noEmit` |
 | `bun run lint` | Biome em modo de verificação |
 | `bun run lint:fix` | Biome corrigindo e ordenando imports |
