@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verificacao:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+
+      - run: bun install --frozen-lockfile
+
+      - run: bun run lint
+
+      - run: bun run typecheck
+
+      - name: Testes de unidade
+        run: bun test
+
+      - name: Sobe a infraestrutura de teste
+        run: bun run test:infra:up
+
+      - name: Testes de integração
+        run: bun run test:integration
+
+      - name: Testes de concorrência
+        run: bun run test:concurrency
+
+      - name: Derruba a infraestrutura de teste
+        if: always()
+        run: bun run test:infra:down
