@@ -11,7 +11,9 @@ import {
   Param,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
+import { AuthGuard } from '@shared/infra/http/auth.guard';
 import { CorrelationId } from '@shared/infra/http/http.decorators';
 import { ZodValidationPipe } from '@shared/infra/http/zod-validation.pipe';
 import {
@@ -30,6 +32,7 @@ import {
 
 const walletId = () => new ZodValidationPipe(walletIdSchema);
 
+@UseGuards(AuthGuard)
 @Controller()
 export class WalletController {
   constructor(

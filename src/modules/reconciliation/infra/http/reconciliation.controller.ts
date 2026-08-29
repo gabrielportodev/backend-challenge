@@ -1,9 +1,11 @@
 import { ReconcileWalletUseCase } from '@modules/reconciliation/application/use-cases/reconcile-wallet.use-case';
 import { walletIdSchema } from '@modules/wallet/infra/http/wallet.dto';
-import { Controller, HttpCode, HttpStatus, Inject, Param, Post } from '@nestjs/common';
+import { Controller, HttpCode, HttpStatus, Inject, Param, Post, UseGuards } from '@nestjs/common';
+import { AuthGuard } from '@shared/infra/http/auth.guard';
 import { ZodValidationPipe } from '@shared/infra/http/zod-validation.pipe';
 import { type ReconciliationResponse, reconciliationResponse } from './reconciliation.presenter';
 
+@UseGuards(AuthGuard)
 @Controller()
 export class ReconciliationController {
   constructor(

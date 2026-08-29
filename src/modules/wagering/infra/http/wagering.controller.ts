@@ -1,6 +1,7 @@
 import { GetTransactionUseCase } from '@modules/wagering/application/use-cases/get-transaction.use-case';
 import { SubmitWagerTransactionUseCase } from '@modules/wagering/application/use-cases/submit-wager-transaction.use-case';
-import { Body, Controller, Get, Inject, Param, Post, Res } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Param, Post, Res, UseGuards } from '@nestjs/common';
+import { AuthGuard } from '@shared/infra/http/auth.guard';
 import { CorrelationId, IdempotencyKey } from '@shared/infra/http/http.decorators';
 import type { HttpResponse } from '@shared/infra/http/http-response';
 import { ZodValidationPipe } from '@shared/infra/http/zod-validation.pipe';
@@ -19,6 +20,7 @@ import {
   transactionResponse,
 } from './wagering.presenter';
 
+@UseGuards(AuthGuard)
 @Controller()
 export class WageringController {
   constructor(
