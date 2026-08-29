@@ -20,4 +20,4 @@ import { QueueProbe } from './infra/sqs/queue.probe';
     CheckReadinessUseCase,
   ],
 })
-export class HealthModule { }
+export class HealthModule {}

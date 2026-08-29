@@ -9,6 +9,7 @@ import {
   InMemoryWagerTransactionRepository,
   InMemoryWalletRepository,
 } from '@test/support/fakes';
+import { expectBalanceMatchesLedger } from '@test/support/invariant';
 
 /** Não executa o bloco: o que for gravado mesmo assim estava fora da transação. */
 class SkippingTransactionRunner implements TransactionRunner {
@@ -63,9 +64,8 @@ describe('criação de wallet', () => {
     const ctx = build();
 
     const wallet = await ctx.useCase.execute(command);
-    const ledger = await ctx.ledger.summarize(wallet.id, wallet.currency);
 
-    expect(ledger.balance.toString()).toBe(wallet.balance.toString());
+    expectBalanceMatchesLedger(wallet, ctx.ledger.forWallet(wallet.id));
   });
 
   it('saldo inicial zero cria só a wallet, sem movimentação', async () => {

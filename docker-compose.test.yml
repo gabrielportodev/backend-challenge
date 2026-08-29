@@ -1,0 +1,40 @@
+name: backend-challenge-test
+
+# Infra dedicada aos testes de integração e concorrência: mesmas imagens do Compose de
+# desenvolvimento, em portas próprias, para rodar a suíte sem derrubar o ambiente de trabalho.
+# Sem serviço da aplicação — quem sobe a app é o teste, no processo dele.
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: wagering
+      POSTGRES_PASSWORD: wagering
+      POSTGRES_DB: wagering_test
+    ports:
+      - "5434:5432"
+    # Em memória: o banco de teste é descartável e assim cada `up` começa limpo.
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wagering -d wagering_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  localstack:
+    image: localstack/localstack:4
+    environment:
+      SERVICES: sqs
+    ports:
+      - "4567:4566"
+    volumes:
+      - ./docker/localstack/init-sqs.sh:/etc/localstack/init/ready.d/init-sqs.sh:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "awslocal sqs get-queue-url --queue-name wagering-events.fifo",
+        ]
+      interval: 2s
+      timeout: 5s
+      retries: 30

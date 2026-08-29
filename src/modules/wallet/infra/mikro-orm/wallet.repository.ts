@@ -1,4 +1,4 @@
-import { EntityManager, LockMode } from '@mikro-orm/postgresql';
+import { EntityManager } from '@mikro-orm/postgresql';
 import type { Wallet } from '@modules/wallet/domain/wallet.aggregate';
 import type { WalletRepository } from '@modules/wallet/domain/wallet.repository.port';
 import { Inject, Injectable } from '@nestjs/common';
@@ -21,15 +21,31 @@ export class MikroWalletRepository implements WalletRepository {
   }
 
   /**
-   * SELECT ... FOR UPDATE. O MikroORM recusa lock pessimista fora de transação, então
-   * chamar isto sem `TransactionRunner.run` falha na hora em vez de ler sem proteção.
+   * Trava a linha da wallet para esta transação. O lock é `FOR NO KEY UPDATE`, e não `FOR UPDATE`,
+   * porque o que precisa ser excluído é outra escrita de saldo — a chave da linha não muda.
+   *
+   * A diferença não é cosmética: o insert de `wager_transactions` toma `FOR KEY SHARE` na wallet
+   * por causa da FK, e `FOR UPDATE` conflita com esse lock. Como o insert vem antes do lock, duas
+   * submissões concorrentes na mesma wallet fechavam um ciclo e o Postgres matava uma por deadlock.
+   * `FOR NO KEY UPDATE` convive com o `FOR KEY SHARE` e continua serializando os dois saldos.
    */
   async findByIdForUpdate(id: string): Promise<Wallet | null> {
-    const row = await this.em.findOne(
-      WalletEntity,
-      { id },
-      { lockMode: LockMode.PESSIMISTIC_WRITE },
+    // Fora de uma transação o lock seria liberado na mesma hora, o que é pior que não travar.
+    if (!this.em.getTransactionContext()) {
+      throw new Error('findByIdForUpdate precisa rodar dentro de TransactionRunner.run');
+    }
+
+    const locked = await this.em.execute<{ id: string }[]>(
+      'select id from wallets where id = ? for no key update',
+      [id],
     );
+
+    if (locked.length === 0) {
+      return null;
+    }
+
+    // `refresh` porque a leitura só vale depois do lock: o que estiver no identity map é anterior.
+    const row = await this.em.findOne(WalletEntity, { id }, { refresh: true });
 
     return row ? walletToDomain(row) : null;
   }

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 import { Wallet } from '@modules/wallet/domain/wallet.aggregate';
 import { Money } from '@shared/domain/money';
 import { expectFailure } from '@test/support/failure';
+import { expectBalanceMatchesLedger } from '@test/support/invariant';
 
 const brl = (amount: string) => Money.from({ amount, currency: 'BRL' });
 const openedAt = new Date('2026-01-01T00:00:00.000Z');
@@ -151,13 +152,7 @@ describe('debito e credito', () => {
       wallet.debit({ ...movement('5.50'), transactionId: 'tx-3', ledgerEntryId: 'entry-3' }),
     ].filter((entry) => entry !== undefined);
 
-    const rebuilt = entries.reduce(
-      (balance, entry) =>
-        entry.direction === 'DEBIT' ? balance.subtract(entry.money) : balance.add(entry.money),
-      Money.zero('BRL'),
-    );
-
-    expect(wallet.balance.equals(rebuilt)).toBe(true);
+    expectBalanceMatchesLedger(wallet, entries);
     expect(wallet.balance.toString()).toBe('120.00');
     expect(wallet.version).toBe(4);
   });

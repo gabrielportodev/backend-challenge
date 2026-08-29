@@ -1,0 +1,5 @@
+# `bun test` sem argumento roda só a suíte de unidade. As outras duas precisam dos containers do
+# docker-compose.test.yml e de prazos bem maiores que o padrão de 5s, então ficam fora daqui —
+# os scripts test:integration e test:concurrency sobrescrevem esta lista na linha de comando.
+[test]
+pathIgnorePatterns = ["**/test/integration/**", "**/test/concurrency/**"]

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import {
   SubmitWagerTransactionUseCase,
   type WagerTransactionPayload,
@@ -14,6 +14,7 @@ import {
   InMemoryWagerTransactionRepository,
   InMemoryWalletRepository,
 } from '@test/support/fakes';
+import { expectBalanceMatchesLedger } from '@test/support/invariant';
 
 const PROVIDER = 'provider-a';
 
@@ -96,6 +97,15 @@ async function storedBalance(): Promise<string> {
 describe('submissão de transação', () => {
   beforeEach(async () => {
     await scenario('100.00');
+  });
+
+  // Toda submissão termina na mesma invariante, tenha ela sido aceita, recusada ou repetida.
+  afterEach(async () => {
+    const wallet = await wallets.findById(walletId);
+
+    if (wallet) {
+      expectBalanceMatchesLedger(wallet, ledger.forWallet(walletId));
+    }
   });
 
   describe('regras por tipo', () => {
