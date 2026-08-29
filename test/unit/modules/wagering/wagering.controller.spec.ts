@@ -7,6 +7,7 @@ import type { SubmitTransactionBody } from '@modules/wagering/infra/http/wagerin
 import type { SubmissionResponse } from '@modules/wagering/infra/http/wagering.presenter';
 import { CreateWalletUseCase } from '@modules/wallet/application/use-cases/create-wallet.use-case';
 import type { HttpResponse } from '@shared/infra/http/http-response';
+import { MetricsService } from '@shared/infra/metrics/metrics.service';
 import { expectRejection } from '@test/support/failure';
 import {
   ImmediateTransactionRunner,
@@ -63,6 +64,7 @@ beforeEach(async () => {
       transactions,
       new InMemoryInboxRepository(),
       new WagerSettlement(wallets, transactions, ledger, outbox),
+      new MetricsService(),
     ),
     new GetTransactionUseCase(transactions),
   );

@@ -5,6 +5,7 @@ import {
 } from '@modules/wagering/application/use-cases/submit-wager-transaction.use-case';
 import { WagerSettlement } from '@modules/wagering/application/wager-settlement';
 import { CreateWalletUseCase } from '@modules/wallet/application/use-cases/create-wallet.use-case';
+import { MetricsService } from '@shared/infra/metrics/metrics.service';
 import { expectRejection } from '@test/support/failure';
 import {
   ImmediateTransactionRunner,
@@ -47,6 +48,7 @@ async function scenario(initialBalance: string): Promise<void> {
     transactions,
     inbox,
     new WagerSettlement(wallets, transactions, ledger, outbox),
+    new MetricsService(),
   );
 
   const wallet = await createWallet.execute({

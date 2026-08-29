@@ -65,6 +65,9 @@ export function apiClient(baseUrl: string) {
 
     reconcile: (walletId: string) =>
       request<ReconciliationResponse>('POST', `/wallets/${walletId}/reconciliation`),
+
+    /** Texto puro: o formato de exposição do Prometheus não é JSON. */
+    metrics: async (): Promise<string> => (await fetch(`${baseUrl}/metrics`)).text(),
   };
 }
 

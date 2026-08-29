@@ -8,6 +8,7 @@ import { GetLedgerUseCase } from '@modules/wallet/application/use-cases/get-ledg
 import { GetWalletUseCase } from '@modules/wallet/application/use-cases/get-wallet.use-case';
 import { WalletLedgerEntry } from '@modules/wallet/domain/wallet-ledger-entry.entity';
 import { Money } from '@shared/domain/money';
+import { MetricsService } from '@shared/infra/metrics/metrics.service';
 import { expectRejection } from '@test/support/failure';
 import {
   ImmediateTransactionRunner,
@@ -43,12 +44,13 @@ beforeEach(async () => {
     transactions,
     new InMemoryInboxRepository(),
     new WagerSettlement(wallets, transactions, ledger, outbox),
+    new MetricsService(),
   );
 
   getWallet = new GetWalletUseCase(wallets);
   getLedger = new GetLedgerUseCase(wallets, ledger);
   getTransaction = new GetTransactionUseCase(transactions);
-  reconcile = new ReconcileWalletUseCase(runner, wallets, ledger);
+  reconcile = new ReconcileWalletUseCase(runner, wallets, ledger, new MetricsService());
 
   const wallet = await createWallet.execute({
     playerId: 'player-1',

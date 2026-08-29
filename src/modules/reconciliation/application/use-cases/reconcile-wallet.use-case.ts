@@ -9,6 +9,7 @@ import {
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { walletNotFound } from '@shared/domain/errors';
 import type { Money } from '@shared/domain/money';
+import { MetricsService } from '@shared/infra/metrics/metrics.service';
 import { TRANSACTION_RUNNER, type TransactionRunner } from '@shared/kernel/transaction-runner.port';
 
 export interface ReconciliationReport {
@@ -28,6 +29,7 @@ export class ReconcileWalletUseCase {
     @Inject(TRANSACTION_RUNNER) private readonly transaction: TransactionRunner,
     @Inject(WALLET_REPOSITORY) private readonly wallets: WalletRepository,
     @Inject(LEDGER_REPOSITORY) private readonly ledger: LedgerRepository,
+    @Inject(MetricsService) private readonly metrics: MetricsService,
   ) {}
 
   /**
@@ -54,12 +56,18 @@ export class ReconcileWalletUseCase {
       };
     });
 
+    this.metrics.reconciliationChecked(report.consistent);
+
     // Divergência não é corrigida em silêncio: fica no log e sinalizada na resposta.
     if (!report.consistent) {
-      this.logger.error(
-        `Divergência na wallet ${walletId}: saldo ${report.storedBalance.toString()}, ` +
-          `ledger ${report.calculatedBalance.toString()}, diferença ${report.difference.toString()}`,
-      );
+      this.logger.error({
+        msg: 'Divergência entre saldo e ledger',
+        walletId,
+        storedBalance: report.storedBalance.toString(),
+        calculatedBalance: report.calculatedBalance.toString(),
+        difference: report.difference.toString(),
+        checkedEntries: report.checkedEntries,
+      });
     }
 
     return report;

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { MetricsModule } from '@shared/infra/metrics/metrics.module';
 import { PersistenceModule } from '@shared/infra/persistence/persistence.module';
 import { OutboxPublisherWorker } from './application/outbox-publisher.worker';
 import { INBOX_REPOSITORY } from './domain/inbox.repository.port';
@@ -20,7 +21,7 @@ const providers = [
 // Inbox, outbox e transporte são infraestrutura de todos os contextos, não regra de nenhum.
 // Quem consome a fila é o contexto de wagering; daqui sai só o acesso a ela.
 @Module({
-  imports: [PersistenceModule],
+  imports: [PersistenceModule, MetricsModule],
   providers: [...providers, OutboxPublisherWorker],
   exports: providers.map((provider) => provider.provide),
 })

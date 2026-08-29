@@ -5,6 +5,7 @@ import { ReconciliationController } from '@modules/reconciliation/infra/http/rec
 import { WageringController } from '@modules/wagering/infra/http/wagering.controller';
 import { WalletController } from '@modules/wallet/infra/http/wallet.controller';
 import { AuthGuard } from '@shared/infra/http/auth.guard';
+import { MetricsController } from '@shared/infra/metrics/metrics.controller';
 
 // Chave em que o `@UseGuards` grava. Ler dela é o que prova que o guard segue aplicado.
 const GUARDS_METADATA = '__guards__';
@@ -24,7 +25,8 @@ describe('AuthGuard', () => {
     }
   });
 
-  it('não está aplicado ao health, consultado sem credencial pelo orquestrador', () => {
+  it('não está aplicado ao health nem ao metrics, raspados sem credencial', () => {
     expect(guardsOf(HealthController)).toEqual([]);
+    expect(guardsOf(MetricsController)).toEqual([]);
   });
 });

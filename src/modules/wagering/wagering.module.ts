@@ -1,6 +1,7 @@
 import { MessagingModule } from '@modules/messaging/messaging.module';
 import { WalletPersistenceModule } from '@modules/wallet/infra/mikro-orm/wallet-persistence.module';
 import { Module } from '@nestjs/common';
+import { MetricsModule } from '@shared/infra/metrics/metrics.module';
 import { PersistenceModule } from '@shared/infra/persistence/persistence.module';
 import { PendingReferenceWorker } from './application/pending-reference.worker';
 import { GetTransactionUseCase } from './application/use-cases/get-transaction.use-case';
@@ -14,7 +15,13 @@ const useCases = [SubmitWagerTransactionUseCase, GetTransactionUseCase];
 
 // O mesmo use case atende as duas entradas: o controller HTTP e o consumidor da fila.
 @Module({
-  imports: [PersistenceModule, WageringPersistenceModule, WalletPersistenceModule, MessagingModule],
+  imports: [
+    PersistenceModule,
+    MetricsModule,
+    WageringPersistenceModule,
+    WalletPersistenceModule,
+    MessagingModule,
+  ],
   controllers: [WageringController],
   providers: [...useCases, WagerSettlement, PendingReferenceWorker, WagerTransactionsConsumer],
   exports: useCases,

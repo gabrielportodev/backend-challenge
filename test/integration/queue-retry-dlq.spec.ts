@@ -6,6 +6,7 @@ import {
 } from '@modules/messaging/domain/outbox.repository.port';
 import { SubmitWagerTransactionUseCase } from '@modules/wagering/application/use-cases/submit-wager-transaction.use-case';
 import { WagerTransactionsConsumer } from '@modules/wagering/infra/sqs/wager-transactions.consumer';
+import { MetricsService } from '@shared/infra/metrics/metrics.service';
 import { createTestApp, type TestApp } from '@test/support/app';
 import { type ApiClient, apiClient } from '@test/support/client';
 import { expectStoredBalancesMatchLedger } from '@test/support/invariant';
@@ -45,6 +46,7 @@ describe('classificação de falhas do consumidor', () => {
     new WagerTransactionsConsumer(
       instancia.app.get(MESSAGE_CONSUMER),
       instancia.app.get(SubmitWagerTransactionUseCase),
+      instancia.app.get(MetricsService),
     );
 
   beforeAll(async () => {

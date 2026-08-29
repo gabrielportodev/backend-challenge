@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import { ReconcileWalletUseCase } from '@modules/reconciliation/application/use-cases/reconcile-wallet.use-case';
 import { ReconciliationController } from '@modules/reconciliation/infra/http/reconciliation.controller';
 import { CreateWalletUseCase } from '@modules/wallet/application/use-cases/create-wallet.use-case';
+import { MetricsService } from '@shared/infra/metrics/metrics.service';
 import { expectRejection } from '@test/support/failure';
 import {
   ImmediateTransactionRunner,
@@ -24,7 +25,9 @@ beforeEach(() => {
   const outbox = new InMemoryOutboxRepository();
 
   createWallet = new CreateWalletUseCase(runner, wallets, transactions, ledger, outbox);
-  controller = new ReconciliationController(new ReconcileWalletUseCase(runner, wallets, ledger));
+  controller = new ReconciliationController(
+    new ReconcileWalletUseCase(runner, wallets, ledger, new MetricsService()),
+  );
 });
 
 describe('ReconciliationController', () => {

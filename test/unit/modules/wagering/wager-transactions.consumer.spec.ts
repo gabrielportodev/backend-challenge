@@ -8,6 +8,7 @@ import { WagerSettlement } from '@modules/wagering/application/wager-settlement'
 import type { WagerTransaction } from '@modules/wagering/domain/wager-transaction.aggregate';
 import { WagerTransactionsConsumer } from '@modules/wagering/infra/sqs/wager-transactions.consumer';
 import { CreateWalletUseCase } from '@modules/wallet/application/use-cases/create-wallet.use-case';
+import { MetricsService } from '@shared/infra/metrics/metrics.service';
 import {
   ImmediateTransactionRunner,
   InMemoryInboxRepository,
@@ -118,6 +119,7 @@ beforeEach(async () => {
     transactions,
     inbox,
     new WagerSettlement(wallets, transactions, ledger, outbox),
+    new MetricsService(),
   );
 
   walletId = (
@@ -128,7 +130,7 @@ beforeEach(async () => {
     })
   ).id;
 
-  consumer = new WagerTransactionsConsumer(queue, useCase);
+  consumer = new WagerTransactionsConsumer(queue, useCase, new MetricsService());
 });
 
 async function ledgerBalance(): Promise<string> {

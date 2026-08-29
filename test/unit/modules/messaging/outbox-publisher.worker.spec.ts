@@ -5,6 +5,7 @@ import type {
   OutgoingMessage,
 } from '@modules/messaging/domain/message-publisher.port';
 import { OutboxMessage } from '@modules/messaging/domain/outbox-message.entity';
+import { MetricsService } from '@shared/infra/metrics/metrics.service';
 import { IntegrationEvent } from '@shared/kernel/integration-event';
 import { ImmediateTransactionRunner, InMemoryOutboxRepository } from '@test/support/fakes';
 
@@ -47,7 +48,12 @@ function setup(publisher: MessagePublisherPort, ids: string[]) {
     void outbox.enqueue(OutboxMessage.enqueue(new TestEvent(id)));
   }
 
-  const worker = new OutboxPublisherWorker(new ImmediateTransactionRunner(), outbox, publisher);
+  const worker = new OutboxPublisherWorker(
+    new ImmediateTransactionRunner(),
+    outbox,
+    publisher,
+    new MetricsService(),
+  );
 
   return { outbox, worker };
 }
@@ -113,7 +119,12 @@ describe('OutboxPublisherWorker', () => {
     await outbox.enqueue(OutboxMessage.enqueue(new TestEvent('event-1')));
     await outbox.enqueue(OutboxMessage.enqueue(new TestEvent('event-2')));
 
-    await new OutboxPublisherWorker(runner, outbox, new FakePublisher()).publishPending(now);
+    await new OutboxPublisherWorker(
+      runner,
+      outbox,
+      new FakePublisher(),
+      new MetricsService(),
+    ).publishPending(now);
 
     expect(runner.runs).toBe(1);
   });

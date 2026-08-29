@@ -4,6 +4,7 @@ import { WagerSettlement } from '@modules/wagering/application/wager-settlement'
 import { WAGER_TRANSACTION_REPOSITORY } from '@modules/wagering/domain/wager-transaction.repository.port';
 import type { SubmitTransactionBody } from '@modules/wagering/infra/http/wagering.dto';
 import { WALLET_REPOSITORY } from '@modules/wallet/domain/wallet.repository.port';
+import { MetricsService } from '@shared/infra/metrics/metrics.service';
 import { TRANSACTION_RUNNER } from '@shared/kernel/transaction-runner.port';
 import { createTestApp, type TestApp } from '@test/support/app';
 import { type ApiClient, apiClient } from '@test/support/client';
@@ -53,6 +54,7 @@ describe('referência fora de ordem', () => {
       app.app.get(WAGER_TRANSACTION_REPOSITORY),
       app.app.get(WALLET_REPOSITORY),
       app.app.get(WagerSettlement),
+      app.app.get(MetricsService),
     );
   });
 

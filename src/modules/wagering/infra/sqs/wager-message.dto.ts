@@ -12,6 +12,8 @@ export const wagerMessageSchema = z.object({
   messageId: z.string().min(1).max(255),
   type: z.literal('WagerTransactionRequested'),
   occurredAt: z.iso.datetime(),
+  // Opcional: liga o log e o evento ao rastro que o provedor já tinha, como o header faz no HTTP.
+  correlationId: z.string().min(1).max(255).optional(),
   // A chave de idempotência viaja dentro do corpo porque a fila não tem header onde colocá-la.
   data: submitTransactionSchema.extend({ idempotencyKey: idempotencyKeySchema }),
 });

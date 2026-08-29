@@ -16,6 +16,7 @@ import {
   type OnApplicationShutdown,
 } from '@nestjs/common';
 import { walletNotFound } from '@shared/domain/errors';
+import { MetricsService } from '@shared/infra/metrics/metrics.service';
 import { TRANSACTION_RUNNER, type TransactionRunner } from '@shared/kernel/transaction-runner.port';
 
 const BATCH_SIZE = 10;
@@ -44,6 +45,7 @@ export class PendingReferenceWorker implements OnApplicationBootstrap, OnApplica
     private readonly transactions: WagerTransactionRepository,
     @Inject(WALLET_REPOSITORY) private readonly wallets: WalletRepository,
     @Inject(WagerSettlement) private readonly settlement: WagerSettlement,
+    @Inject(MetricsService) private readonly metrics: MetricsService,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -60,18 +62,30 @@ export class PendingReferenceWorker implements OnApplicationBootstrap, OnApplica
 
   /** Uma varredura: pega o lote vencido, já travado, e tenta resolver cada transação. */
   async resolveDue(now = new Date()): Promise<number> {
-    return this.transaction.run(async () => {
+    const settled: WagerTransaction[] = [];
+
+    const total = await this.transaction.run(async () => {
       const due = await this.transactions.findPendingReferenceDue(BATCH_SIZE, now);
 
       for (const transaction of due) {
-        await this.resolveOne(transaction, now);
+        if (await this.resolveOne(transaction, now)) {
+          settled.push(transaction);
+        }
       }
 
       return due.length;
     });
+
+    // Contadas depois do commit: o que um rollback desfizesse não pode aparecer como concluído.
+    for (const transaction of settled) {
+      this.metrics.transactionSettled(transaction.kind, transaction.status);
+    }
+
+    return total;
   }
 
-  private async resolveOne(transaction: WagerTransaction, now: Date): Promise<void> {
+  /** Devolve `true` quando a transação chegou a um estado terminal nesta tentativa. */
+  private async resolveOne(transaction: WagerTransaction, now: Date): Promise<boolean> {
     // Mesma ordem de locks do caminho de submissão — transação e depois wallet — para não
     // inverter a fila e criar deadlock entre o worker e uma aposta chegando pela borda.
     const wallet = await this.wallets.findByIdForUpdate(transaction.walletId);
@@ -88,7 +102,7 @@ export class PendingReferenceWorker implements OnApplicationBootstrap, OnApplica
         transaction.reject('REFERENCE_NOT_FOUND');
       } else {
         await this.transactions.update(transaction);
-        return;
+        return false;
       }
     }
 
@@ -96,10 +110,18 @@ export class PendingReferenceWorker implements OnApplicationBootstrap, OnApplica
     // O evento só sai quando a transação chega a um estado terminal: reagendamento não é notícia.
     await this.settlement.publish(transaction, wallet, entry, transaction.id, now);
 
-    this.logger.log(
-      `Transação ${transaction.id} saiu de PENDING_REFERENCE como ${transaction.status}` +
-        `${transaction.failureCode ? ` (${transaction.failureCode})` : ''}`,
-    );
+    this.logger.log({
+      msg: 'Transação saiu de PENDING_REFERENCE',
+      // O mesmo correlationId que o evento publicado carrega: o log e o evento se encontram.
+      correlationId: transaction.id,
+      transactionId: transaction.id,
+      walletId: transaction.walletId,
+      providerId: transaction.providerId,
+      status: transaction.status,
+      failureCode: transaction.failureCode,
+    });
+
+    return true;
   }
 
   private async run(): Promise<void> {
@@ -109,7 +131,10 @@ export class PendingReferenceWorker implements OnApplicationBootstrap, OnApplica
       try {
         await this.resolveDue();
       } catch (error) {
-        this.logger.error(`Varredura de PENDING_REFERENCE falhou: ${(error as Error).message}`);
+        this.logger.error({
+          msg: 'Varredura de PENDING_REFERENCE falhou',
+          reason: (error as Error).message,
+        });
         delay = ERROR_DELAY_MS;
       }
 

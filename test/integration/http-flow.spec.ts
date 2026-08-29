@@ -4,6 +4,13 @@ import { type ApiClient, apiClient } from '@test/support/client';
 import { expectStoredBalancesMatchLedger } from '@test/support/invariant';
 import { payload, TEST_PROVIDER } from '@test/support/payloads';
 
+/** Lê uma métrica no texto exposto pelo Prometheus; ausente vale zero. */
+function metricValue(scrape: string, name: string): number {
+  const line = scrape.split('\n').find((it) => it.startsWith(name));
+
+  return line ? Number(line.slice(name.length).trim()) : 0;
+}
+
 /** Fluxo ponta a ponta pela API, contra o Postgres do container. */
 describe('fluxo HTTP ponta a ponta', () => {
   let app: TestApp;
@@ -55,6 +62,22 @@ describe('fluxo HTTP ponta a ponta', () => {
 
     expect(wallet.body.balance.amount).toBe('120.00');
     expect(wallet.body.version).toBe(3);
+  });
+
+  it('contabiliza a submissão em /metrics', async () => {
+    const metrica = 'wagering_transactions_total{kind="BET",status="PROCESSED"}';
+    // Comparado com o valor anterior: o contador é da aplicação inteira, não deste teste.
+    const antes = metricValue(await api.metrics(), metrica);
+
+    await api.submit(
+      payload({ walletId, money: { amount: '30.00', currency: 'BRL' } }),
+      'k-metrica',
+    );
+
+    const depois = await api.metrics();
+
+    expect(metricValue(depois, metrica)).toBe(antes + 1);
+    expect(depois).toContain('wagering_submission_duration_seconds_count{source="http"}');
   });
 
   it('não move saldo nem gera lançamento no LOSS', async () => {

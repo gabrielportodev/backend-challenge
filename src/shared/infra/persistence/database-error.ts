@@ -29,6 +29,17 @@ export function isRetryableDatabaseError(error: unknown): boolean {
   return RETRYABLE_CODES.includes(code) || code.startsWith(CONNECTION_CLASS);
 }
 
+/** Disputa pela mesma wallet: falha de serialização ou deadlock, o que a métrica acompanha. */
+export function isLockConflict(error: unknown): boolean {
+  if (error instanceof StaleWalletVersionError) {
+    return true;
+  }
+
+  const code = errorCode(error);
+
+  return code !== undefined && RETRYABLE_CODES.includes(code);
+}
+
 export function isUniqueViolation(error: unknown): boolean {
   return error instanceof UniqueConstraintViolationException;
 }

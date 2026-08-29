@@ -7,11 +7,13 @@ import { Module } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
 import { DomainExceptionFilter } from '@shared/infra/http/domain-exception.filter';
 import { LoggingModule } from '@shared/infra/logger/logging.module';
+import { MetricsModule } from '@shared/infra/metrics/metrics.module';
 import { PersistenceModule } from '@shared/infra/persistence/persistence.module';
 
 @Module({
   imports: [
     LoggingModule,
+    MetricsModule,
     PersistenceModule,
     MessagingModule,
     WalletModule,

@@ -14,6 +14,7 @@ import {
   type OnApplicationBootstrap,
   type OnApplicationShutdown,
 } from '@nestjs/common';
+import { MetricsService } from '@shared/infra/metrics/metrics.service';
 import { TRANSACTION_RUNNER, type TransactionRunner } from '@shared/kernel/transaction-runner.port';
 
 const BATCH_SIZE = 20;
@@ -42,6 +43,7 @@ export class OutboxPublisherWorker implements OnApplicationBootstrap, OnApplicat
     @Inject(TRANSACTION_RUNNER) private readonly transaction: TransactionRunner,
     @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository,
     @Inject(MESSAGE_PUBLISHER) private readonly publisher: MessagePublisherPort,
+    @Inject(MetricsService) private readonly metrics: MetricsService,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -65,6 +67,12 @@ export class OutboxPublisherWorker implements OnApplicationBootstrap, OnApplicat
     return this.transaction.run(async () => {
       const due = await this.outbox.findDue(BATCH_SIZE, now);
 
+      // O lote vem do mais antigo para o mais novo, então o primeiro mede o atraso da publicação.
+      const oldest = due[0];
+      this.metrics.outboxLagSeconds(
+        oldest ? (now.getTime() - oldest.occurredAt.getTime()) / 1_000 : 0,
+      );
+
       for (const message of due) {
         await this.publishOne(message, now);
       }
@@ -85,11 +93,16 @@ export class OutboxPublisherWorker implements OnApplicationBootstrap, OnApplicat
     } catch (error) {
       // Falha de publicação não derruba o lote: a linha volta com o retry adiado.
       message.scheduleRetry(now);
+      this.metrics.retryScheduled('outbox');
 
-      this.logger.warn(
-        `Falha ao publicar ${message.eventType} ${message.id} ` +
-          `(tentativa ${message.attempts}): ${(error as Error).message}`,
-      );
+      this.logger.warn({
+        msg: 'Falha ao publicar evento',
+        eventId: message.id,
+        eventType: message.eventType,
+        aggregateId: message.aggregateId,
+        attempt: message.attempts,
+        reason: (error as Error).message,
+      });
     }
 
     await this.outbox.update(message);
@@ -107,7 +120,10 @@ export class OutboxPublisherWorker implements OnApplicationBootstrap, OnApplicat
           continue;
         }
       } catch (error) {
-        this.logger.error(`Varredura do outbox falhou: ${(error as Error).message}`);
+        this.logger.error({
+          msg: 'Varredura do outbox falhou',
+          reason: (error as Error).message,
+        });
         delay = ERROR_DELAY_MS;
       }
 

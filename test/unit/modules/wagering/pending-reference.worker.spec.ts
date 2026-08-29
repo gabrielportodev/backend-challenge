@@ -6,6 +6,7 @@ import {
 } from '@modules/wagering/application/use-cases/submit-wager-transaction.use-case';
 import { WagerSettlement } from '@modules/wagering/application/wager-settlement';
 import { CreateWalletUseCase } from '@modules/wallet/application/use-cases/create-wallet.use-case';
+import { MetricsService } from '@shared/infra/metrics/metrics.service';
 import {
   ImmediateTransactionRunner,
   InMemoryInboxRepository,
@@ -44,9 +45,16 @@ beforeEach(async () => {
     transactions,
     new InMemoryInboxRepository(),
     settlement,
+    new MetricsService(),
   );
 
-  worker = new PendingReferenceWorker(runner, transactions, wallets, settlement);
+  worker = new PendingReferenceWorker(
+    runner,
+    transactions,
+    wallets,
+    settlement,
+    new MetricsService(),
+  );
 
   const wallet = await new CreateWalletUseCase(
     runner,

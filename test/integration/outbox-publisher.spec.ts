@@ -6,6 +6,7 @@ import {
   type OutgoingMessage,
 } from '@modules/messaging/domain/message-publisher.port';
 import { OUTBOX_REPOSITORY } from '@modules/messaging/domain/outbox.repository.port';
+import { MetricsService } from '@shared/infra/metrics/metrics.service';
 import { TRANSACTION_RUNNER } from '@shared/kernel/transaction-runner.port';
 import { createTestApp, type TestApp } from '@test/support/app';
 import { type ApiClient, apiClient } from '@test/support/client';
@@ -52,6 +53,7 @@ describe('outbox e publicação de eventos', () => {
       app.app.get(TRANSACTION_RUNNER),
       app.app.get(OUTBOX_REPOSITORY),
       publisher,
+      app.app.get(MetricsService),
     );
 
   beforeAll(async () => {

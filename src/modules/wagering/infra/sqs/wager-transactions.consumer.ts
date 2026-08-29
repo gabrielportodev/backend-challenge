@@ -12,6 +12,8 @@ import {
   type OnApplicationShutdown,
 } from '@nestjs/common';
 import { DomainError } from '@shared/domain/errors';
+import type { DeadLetterCause } from '@shared/infra/metrics/metrics.service';
+import { MetricsService } from '@shared/infra/metrics/metrics.service';
 import { type WagerMessage, wagerMessageSchema } from './wager-message.dto';
 
 /** Identidade do consumidor no inbox: outro consumidor da mesma fila teria dedup próprio. */
@@ -50,6 +52,7 @@ export class WagerTransactionsConsumer implements OnApplicationBootstrap, OnAppl
     @Inject(MESSAGE_CONSUMER) private readonly queue: MessageConsumerPort,
     @Inject(SubmitWagerTransactionUseCase)
     private readonly submitTransaction: SubmitWagerTransactionUseCase,
+    @Inject(MetricsService) private readonly metrics: MetricsService,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -87,16 +90,18 @@ export class WagerTransactionsConsumer implements OnApplicationBootstrap, OnAppl
       envelope = wagerMessageSchema.parse(JSON.parse(message.body));
     } catch (error) {
       // Falha permanente: nenhuma reentrega conserta um envelope que não dá para ler.
-      await this.discard(message, `envelope inválido (${(error as Error).message})`);
+      await this.discard(message, 'invalid_envelope', (error as Error).message);
       return;
     }
 
     const { idempotencyKey, ...payload } = envelope.data;
+    // O provedor manda o correlationId quando tem um; sem ele, o próprio messageId serve de rastro.
+    const correlationId = envelope.correlationId ?? envelope.messageId;
 
     try {
       const result = await this.submitTransaction.execute({
         idempotencyKey,
-        correlationId: envelope.messageId,
+        correlationId,
         payload,
         inbox: { consumerName: CONSUMER_NAME, messageId: envelope.messageId },
       });
@@ -104,12 +109,18 @@ export class WagerTransactionsConsumer implements OnApplicationBootstrap, OnAppl
       // Commitado: só agora a mensagem pode sair da fila.
       await this.queue.ack(message);
 
-      this.logger.log(
-        `Mensagem ${envelope.messageId} processada: transação ${result.transaction.id} ` +
-          `${result.transaction.status}${result.idempotentReplay ? ' (replay)' : ''}`,
-      );
+      this.logger.log({
+        msg: 'Mensagem processada',
+        correlationId,
+        messageId: envelope.messageId,
+        transactionId: result.transaction.id,
+        walletId: payload.walletId,
+        providerId: payload.providerId,
+        status: result.transaction.status,
+        idempotentReplay: result.idempotentReplay,
+      });
     } catch (error) {
-      await this.onFailure(message, envelope, error);
+      await this.onFailure(message, envelope, correlationId, error);
     }
   }
 
@@ -121,12 +132,23 @@ export class WagerTransactionsConsumer implements OnApplicationBootstrap, OnAppl
   private async onFailure(
     message: IncomingMessage,
     envelope: WagerMessage,
+    correlationId: string,
     error: unknown,
   ): Promise<void> {
+    const context = {
+      correlationId,
+      messageId: envelope.messageId,
+      walletId: envelope.data.walletId,
+      providerId: envelope.data.providerId,
+    };
+
     if (error instanceof DomainError) {
-      this.logger.warn(
-        `Mensagem ${envelope.messageId} recusada (${error.failureCode}): ${error.message}`,
-      );
+      this.logger.warn({
+        ...context,
+        msg: 'Mensagem recusada',
+        failureCode: error.failureCode,
+        reason: error.message,
+      });
       await this.queue.ack(message);
 
       return;
@@ -135,22 +157,38 @@ export class WagerTransactionsConsumer implements OnApplicationBootstrap, OnAppl
     const reason = (error as Error).message;
 
     if (message.receiveCount >= MAX_RECEIVES) {
-      await this.discard(message, `falhou ${message.receiveCount} vezes (${reason})`);
+      await this.discard(message, 'max_receives', reason, context);
       return;
     }
 
     const delay = retryDelaySeconds(message.receiveCount);
 
-    this.logger.warn(
-      `Mensagem ${envelope.messageId} falhou na tentativa ${message.receiveCount}, ` +
-        `nova tentativa em ${delay}s: ${reason}`,
-    );
+    this.metrics.retryScheduled('queue');
+    this.logger.warn({
+      ...context,
+      msg: 'Mensagem falhou, nova tentativa agendada',
+      attempt: message.receiveCount,
+      retryInSeconds: delay,
+      reason,
+    });
 
     await this.queue.retryLater(message, delay);
   }
 
-  private async discard(message: IncomingMessage, reason: string): Promise<void> {
-    this.logger.error(`Mensagem ${message.id} enviada para a DLQ: ${reason}`);
+  private async discard(
+    message: IncomingMessage,
+    cause: DeadLetterCause,
+    reason: string,
+    context: Record<string, unknown> = {},
+  ): Promise<void> {
+    this.metrics.messageDeadLettered(cause);
+    this.logger.error({
+      ...context,
+      msg: 'Mensagem enviada para a DLQ',
+      id: message.id,
+      cause,
+      reason,
+    });
 
     await this.queue.deadLetter(message);
     await this.queue.ack(message);
@@ -162,7 +200,7 @@ export class WagerTransactionsConsumer implements OnApplicationBootstrap, OnAppl
         // A leitura já segura a chamada enquanto a fila está vazia: não precisa de espera extra.
         await this.consumeBatch();
       } catch (error) {
-        this.logger.error(`Leitura da fila falhou: ${(error as Error).message}`);
+        this.logger.error({ msg: 'Leitura da fila falhou', reason: (error as Error).message });
         await this.wait(ERROR_DELAY_MS);
       }
     }

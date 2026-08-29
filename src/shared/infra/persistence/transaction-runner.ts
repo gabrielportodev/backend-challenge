@@ -1,7 +1,8 @@
 import { EntityManager, IsolationLevel } from '@mikro-orm/postgresql';
 import { Inject, Injectable } from '@nestjs/common';
+import { MetricsService } from '@shared/infra/metrics/metrics.service';
 import type { TransactionRunner } from '@shared/kernel/transaction-runner.port';
-import { isRetryableDatabaseError } from './database-error';
+import { isLockConflict, isRetryableDatabaseError } from './database-error';
 
 const MAX_ATTEMPTS = 3;
 const BASE_DELAY_MS = 20;
@@ -19,7 +20,10 @@ function sleep(ms: number): Promise<void> {
 
 @Injectable()
 export class MikroTransactionRunner implements TransactionRunner {
-  constructor(@Inject(EntityManager) private readonly em: EntityManager) {}
+  constructor(
+    @Inject(EntityManager) private readonly em: EntityManager,
+    @Inject(MetricsService) private readonly metrics: MetricsService,
+  ) {}
 
   /**
    * READ COMMITTED porque a linha da wallet já é travada com FOR UPDATE; isolamento maior
@@ -33,10 +37,16 @@ export class MikroTransactionRunner implements TransactionRunner {
           isolationLevel: IsolationLevel.READ_COMMITTED,
         });
       } catch (error) {
+        // Contado mesmo quando não sobra tentativa: o conflito aconteceu de qualquer jeito.
+        if (isLockConflict(error)) {
+          this.metrics.lockConflict();
+        }
+
         if (attempt >= MAX_ATTEMPTS || !isRetryableDatabaseError(error)) {
           throw error;
         }
 
+        this.metrics.retryScheduled('database');
         await sleep(retryDelay(attempt));
       }
     }

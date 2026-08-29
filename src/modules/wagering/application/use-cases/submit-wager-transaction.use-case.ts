@@ -20,6 +20,7 @@ import {
 import { Inject, Injectable } from '@nestjs/common';
 import { DomainError, walletNotFound } from '@shared/domain/errors';
 import { Money, type MoneyProps } from '@shared/domain/money';
+import { MetricsService } from '@shared/infra/metrics/metrics.service';
 import { DuplicateTransactionError } from '@shared/kernel/duplicate-transaction.error';
 import { newId } from '@shared/kernel/id';
 import { hashPayload } from '@shared/kernel/payload-hash';
@@ -73,9 +74,29 @@ export class SubmitWagerTransactionUseCase {
     private readonly transactions: WagerTransactionRepository,
     @Inject(INBOX_REPOSITORY) private readonly inbox: InboxRepository,
     @Inject(WagerSettlement) private readonly settlement: WagerSettlement,
+    @Inject(MetricsService) private readonly metrics: MetricsService,
   ) {}
 
   async execute(command: SubmitWagerTransactionCommand): Promise<SubmitWagerTransactionResult> {
+    const finish = this.metrics.startSubmission(command.inbox ? 'queue' : 'http');
+
+    try {
+      const result = await this.submit(command);
+
+      // Depois do commit, e só quando houve processamento: replay repetiria a mesma contagem.
+      if (!result.idempotentReplay) {
+        this.metrics.transactionSettled(result.transaction.kind, result.transaction.status);
+      }
+
+      return result;
+    } finally {
+      finish();
+    }
+  }
+
+  private async submit(
+    command: SubmitWagerTransactionCommand,
+  ): Promise<SubmitWagerTransactionResult> {
     const { payload } = command;
 
     WagerTransaction.assertExternallySubmittable(payload.kind);
@@ -173,6 +194,8 @@ export class SubmitWagerTransactionUseCase {
 
     if (existing) {
       if (!existing.matchesPayload(payloadHash)) {
+        this.metrics.duplicateDetected('conflict');
+
         throw new DomainError(
           'IDEMPOTENCY_CONFLICT',
           `Chave ${command.idempotencyKey} já foi usada com outro payload`,
@@ -186,11 +209,15 @@ export class SubmitWagerTransactionUseCase {
         throw walletNotFound(existing.walletId);
       }
 
+      this.metrics.duplicateDetected('replay');
+
       return { transaction: existing, wallet, idempotentReplay: true };
     }
 
     // A chave é nova, então quem colidiu foi o externalTransactionId sob outra chave.
     if (await this.transactions.findByExternalId(providerId, externalTransactionId)) {
+      this.metrics.duplicateDetected('conflict');
+
       throw new DomainError(
         'EXTERNAL_TRANSACTION_CONFLICT',
         `Transação ${externalTransactionId} já existe com outra chave de idempotência`,

@@ -1,6 +1,7 @@
 import ormConfig from '@config/orm.config';
 import { MikroOrmModule } from '@mikro-orm/nestjs';
 import { Module } from '@nestjs/common';
+import { MetricsModule } from '@shared/infra/metrics/metrics.module';
 import { TRANSACTION_RUNNER } from '@shared/kernel/transaction-runner.port';
 import { MikroTransactionRunner } from './transaction-runner';
 
@@ -12,7 +13,7 @@ import { MikroTransactionRunner } from './transaction-runner';
  * lugar — reexportá-lo daqui quebraria o boot, porque o módulo importado não é o `MikroOrmModule`.
  */
 @Module({
-  imports: [MikroOrmModule.forRoot(ormConfig)],
+  imports: [MikroOrmModule.forRoot(ormConfig), MetricsModule],
   providers: [{ provide: TRANSACTION_RUNNER, useClass: MikroTransactionRunner }],
   exports: [TRANSACTION_RUNNER],
 })
